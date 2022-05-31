@@ -1,0 +1,123 @@
+{
+    "env": {
+        "browser": true,
+        "es2021": true
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:react/recommended",
+        "plugin:@typescript-eslint/recommended"
+        // "plugin:import/errors",
+        // "plugin:import/warnings"
+    ],
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaFeatures": {
+            "jsx": true
+        },
+        "ecmaVersion": "latest",
+        "sourceType": "module"
+    },
+    "plugins": [
+        "react",
+        "@typescript-eslint"
+        // "import"
+    ],
+    "rules": {
+        "no-multiple-empty-lines": [
+            "error",
+            {
+                "max": 1
+            }
+        ],
+        "no-trailing-spaces": "error",
+        "react/jsx-wrap-multilines": [
+            "error",
+            {
+                "arrow": "parens-new-line",
+                "return": "parens-new-line",
+                "prop": "parens-new-line",
+                "logical": "parens-new-line"
+            }
+            // {
+            //     "declaration": "parens-new-line",
+            //     "assignment": "parens-new-line",
+            //     "return": "parens-new-line",
+            //     "arrow": "parens-new-line",
+            //     "condition": "parens-new-line",
+            //     "logical": "parens-new-line",
+            //     "prop": "parens-new-line"
+            // }
+        ],
+        // "indent": [
+        //     "error",
+        //     2
+        // ],
+        "react/jsx-closing-tag-location": "error",
+        "react/jsx-curly-newline": "error",
+        "react/jsx-first-prop-new-line": "error",
+        "react/jsx-max-props-per-line": "error",
+        "react/jsx-curly-spacing": "error",
+        "react/jsx-closing-bracket-location": "error",
+        "react/jsx-no-target-blank": "error",
+        "react/jsx-indent": [
+            "error",
+            2,
+            {
+                "checkAttributes": true,
+                "indentLogicalExpressions": true
+            }
+        ],
+        "react/jsx-indent-props": [
+            "error",
+            2
+        ],
+        "react/jsx-newline": "error",
+        "react/jsx-one-expression-per-line": [
+            "error",
+            {
+                "allow": "literal"
+            }
+        ],
+        "no-multi-spaces": [
+            "error",
+            {
+                "ignoreEOLComments": false
+            }
+        ],
+        "linebreak-style": [
+            "error",
+            "unix"
+        ],
+        "quotes": [
+            "error",
+            "single"
+        ],
+        "semi": [
+            "error",
+            "never"
+        ],
+        "newline-after-var": [
+            "error",
+            "always"
+        ],
+        "react/jsx-sort-props": [
+            "error",
+            {
+                "callbacksLast": true,
+                "shorthandFirst": true,
+                "ignoreCase": false,
+                "noSortAlphabetically": false,
+                "reservedFirst": true
+            }
+        ],
+        //        "@typescript-eslint/no-extra-semi": "off",
+        "no-unsafe-optional-chaining": "error",
+        "react/jsx-curly-brace-presence": [
+            "error",
+            "never"
+        ],
+        "react/react-in-jsx-scope": "off"
+        //        "@emotion/jsx-import": "error"
+    }
+}
