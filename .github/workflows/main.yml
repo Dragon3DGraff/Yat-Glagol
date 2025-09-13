@@ -1,9 +1,9 @@
 name: Deploy to server
 
 env:
-  DEPLOY_SERVER_PATH: ixiaolong/site
+  DEPLOY_SERVER_PATH: ixiaolong.ru/site
   BUILD_SERVER_OUTPUT: server
-  DEPLOY_CLIENT_PATH: ixiaolong/site/client
+  DEPLOY_CLIENT_PATH: ixiaolong.ru/site/client
   BUILD_CLIENT_OUTPUT: client/dist
 
 on:
