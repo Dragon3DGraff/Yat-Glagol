@@ -2,7 +2,7 @@ name: Deploy to server
 
 env:
   DEPLOY_SERVER_PATH: ixiaolong.ru/site
-  BUILD_SERVER_OUTPUT: server
+  BUILD_SERVER_OUTPUT: server/dist
   DEPLOY_CLIENT_PATH: ixiaolong.ru/site/client
   BUILD_CLIENT_OUTPUT: client/dist
 
@@ -54,13 +54,17 @@ jobs:
       - name: Build Application
         run: npm run build
 
+      # Копируем .env файл в папку dist для деплоя
+      - name: Copy server .env to dist
+        run: cp server/.env server/dist/.env
+
       - name: Deploy Server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.DEPLOY_SERVER_HOST }}
           username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
           key: ${{ secrets.DEPLOY_SERVER_KEY }}
-          source: ${{ env.BUILD_SERVER_OUTPUT }},server/.env
+          source: ${{ env.BUILD_SERVER_OUTPUT }}
           target: ${{ env.DEPLOY_SERVER_PATH }}
           rm: false
           strip_components: 1
@@ -71,10 +75,10 @@ jobs:
           host: ${{ secrets.DEPLOY_SERVER_HOST }}
           username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
           key: ${{ secrets.DEPLOY_SERVER_KEY }}
-          source: ${{ env.BUILD_CLIENT_OUTPUT }},client/.env
+          source: ${{ env.BUILD_CLIENT_OUTPUT }}
           target: ${{ env.DEPLOY_CLIENT_PATH }}
           rm: false
           strip_components: 1
 
       - name: Print Info
-        run: echo "Deployed to ixiaolong"
+        run: echo "Deployed to ixiaolong.ru/site"
