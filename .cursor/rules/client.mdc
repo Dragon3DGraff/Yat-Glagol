@@ -1,0 +1,53 @@
+---
+description: "Клиент: React/Vite/Axios/Socket/WebRTC правила"
+globs:
+  - "client/**"
+alwaysApply: true
+---
+
+## React и роутинг
+
+- Используем функциональные компоненты и хуки React.
+- Роутер: `BrowserRouter` уже настроен. Новые страницы — в `src/pages`, компоненты — в `src/components`.
+- Темы: подключение через `CustomThemeProvider`.
+
+## Типы и алиасы
+
+- Импортировать типы из `@/types`. Не дублировать интерфейсы в компонентах.
+- Следить за соответствием серверным DTO. При изменениях синхронизировать типы.
+
+## API слой (`@/services/api`)
+
+- Все HTTP-запросы через единый `apiService` (axios). Не создавать новые инстансы axios.
+- Токен управляется только через `apiService` и `authStore` (persist хранит токен и юзера). Не работать с `localStorage` напрямую в компонентах.
+- Нормализуем ответы к `{ success, data, error? }` на уровне сервиса; компоненты и сторы не знают про форму «сырого» ответа сервера.
+
+## Zustand stores
+
+- Структура: `isLoading`, `error`, явные async-экшены. Обновления state — атомарные.
+- `persist`: хранить только необходимые поля через `partialize`.
+- Избегать дублей (например, друзей/запросов). При сомнениях — перезагружать из API.
+
+## Socket.IO (`@/services/socket`)
+
+- Подключение только после успешной авторизации. При логауте — `disconnect()` и очистка listeners.
+- Имена событий — `snake_case`. Подписки/эмиты только через `socketService`.
+- Избегать дублирования listeners (использовать флаги `chatListenersSetup`, `friendsListenersSetup` и функции очистки/переподключения).
+- Ошибки сокета не блокируют UX; показываем `toast`/`console.warn` в dev.
+
+## WebRTC (`@/services/webrtc`)
+
+- Проверять поддержку `WebRTCService.isWebRTCSupported()` и `isScreenShareSupported()`.
+- Получение потоков и управление треками — через методы сервиса; переключение видео — через `replaceTrack`.
+- Сигналинг — только через события `webrtc_offer`, `webrtc_answer`, `webrtc_ice_candidate`.
+- Для демонстрации экрана — корректно обрабатывать `onended` у трека и восстанавливать камеру.
+
+## Vite/Env
+
+- Используем `VITE_API_URL` и `VITE_SOCKET_URL`. В dev уже настроен прокси на `localhost:3001` (HTTP и `/socket.io`).
+- Новые алиасы добавлять синхронно в `vite.config.ts` и `tsconfig.json`.
+
+## PWA
+
+- Не кэшировать приватные API долгосрочно. Поддерживать существующий `workbox.runtimeCaching`.
+

@@ -1,0 +1,80 @@
+name: Deploy to server
+
+env:
+  DEPLOY_SERVER_PATH: ixiaolong/site
+  BUILD_SERVER_OUTPUT: server
+  DEPLOY_CLIENT_PATH: ixiaolong/site/client
+  BUILD_CLIENT_OUTPUT: client/dist
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 22.18.x
+      # Записываем в переменные окружения имя текущей ветки
+      # Чтобы избежать конфиликтов с URL, меняем точки на _, а слеши на минусы
+      - name: Get branch name
+        shell: bash
+        run: echo "name=BRANCH_NAME::$(echo ${GITHUB_REF#refs/heads/} | sed 's/\//-/g' | sed 's/\./_/g')" >> $GITHUB_ENV
+      # Устанавливаем зависимости для сборки
+      - name: Install Dependencies
+        run: npm run install-all
+      # Создаем .env файлы из secrets
+      - name: Create Server .env file
+        run: |
+          echo "PORT=${{ secrets.SERVER_PORT }}" > server/.env
+          echo "CLIENT_URL=${{ secrets.CLIENT_URL }}" >> server/.env
+          echo "DB_HOST=${{ secrets.DB_HOST }}" >> server/.env
+          echo "DB_PORT=${{ secrets.DB_PORT }}" >> server/.env
+          echo "DB_USER=${{ secrets.DB_USER }}" >> server/.env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> server/.env
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> server/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> server/.env
+          echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> server/.env
+          echo "NODE_ENV=production" >> server/.env
+          echo "USE_MOCK_DB=false" >> server/.env
+
+      - name: Create Client .env file
+        run: |
+          echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > client/.env
+          echo "VITE_SOCKET_URL=${{ secrets.VITE_SOCKET_URL }}" >> client/.env
+          echo "VITE_STUN_SERVERS=${{ secrets.VITE_STUN_SERVERS }}" >> client/.env
+          echo "VITE_APP_NAME=Ять-глагол" >> client/.env
+          echo "VITE_APP_VERSION=1.0.0" >> client/.env
+          echo "VITE_DEV_MODE=false" >> client/.env
+
+      # Собираем приложение
+      - name: Build Application
+        run: npm run build
+
+      - name: Deploy Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          source: ${{ env.BUILD_SERVER_OUTPUT }},server/.env
+          target: ${{ env.DEPLOY_SERVER_PATH }}
+          rm: false
+          strip_components: 1
+
+      - name: Deploy client
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          source: ${{ env.BUILD_CLIENT_OUTPUT }},client/.env
+          target: ${{ env.DEPLOY_CLIENT_PATH }}
+          rm: false
+          strip_components: 1
+
+      - name: Print Info
+        run: echo "Deployed to ixiaolong"

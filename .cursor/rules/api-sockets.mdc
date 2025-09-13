@@ -1,0 +1,35 @@
+---
+description: "Правила API и Socket событий: форматы ответов, имена событий, контракты"
+globs:
+  - "client/src/services/**"
+  - "client/src/store/**"
+  - "server/src/routes/**"
+  - "server/src/socket/**"
+alwaysApply: true
+---
+
+## HTTP API
+
+- Базовый формат ответа: `{ success: boolean, data?: T, message?: string, error?: string, details?: any }`.
+- Валидационные ошибки: HTTP 400 и `{ error: "Ошибки валидации", details }`.
+- Стабильность контрактов: изменения в формах ответов сопровождаем адаптацией в `apiService`.
+- Пагинация/списки: возвращать `{ items|messages|rooms, hasMore? }` либо прокидывать ограничение через `limit/offset` как сейчас.
+
+## Socket события
+
+- Имена событий — `snake_case`. Примеры: `new_message`, `message_edited`, `user_typing`, `friend_request_received`.
+- Комнаты: `user:{userId}` для персональных уведомлений; `room_{roomId}` для событий комнаты.
+- Для каждого нового события:
+  - Добавить тип в `SocketEvents` (client `@/types`).
+  - Реализовать emit на сервере и on/off на клиенте через `socketService`.
+  - Обновить соответствующие store listeners (чат/друзья) и очистку listeners.
+
+## Авторизация и токены
+
+- HTTP: заголовок `Authorization: Bearer <token>` устанавливается interceptor-ом `apiService`.
+- Socket: передавать `auth.token` при подключении. При 401 на HTTP — пробовать `refreshToken`, далее logout и редирект `/login`.
+
+## Дубли и целостность
+
+- Для данных, приходящих через сокеты, по возможности проверять наличие по `id` перед добавлением в Zustand, чтобы избежать дублей.
+- При расхождении состояния — приоритет за повторной API-загрузкой (рефреш списков после событий).
