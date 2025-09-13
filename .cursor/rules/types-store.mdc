@@ -1,0 +1,21 @@
+---
+description: "Правила типов и Zustand-хранилищ"
+globs:
+  - "client/src/types/**"
+  - "client/src/store/**"
+alwaysApply: true
+---
+
+## Типы (`@/types`)
+
+- Единые интерфейсы домена: `User`, `ChatRoom`, `Message`, `Friend`, `FriendRequest`, `SocketEvents`, формы и т.д.
+- Не дублировать интерфейсы в компонентах/сторах. Расширения — через `Partial<T>`/`Pick<T, ...>` при необходимости.
+- В серверных ответах использовать те же поля/кейсы, что в типах клиента (например, `message_type`, `created_at`).
+
+## Zustand stores
+
+- Базовое состояние: `isLoading: boolean`, `error: string | null`.
+- Async-экшены: выставлять `isLoading`, ловить исключения, показывать `toast`.
+- Синхронизация с сокетами: слушатели настраивать централизованно (`setup...SocketListeners`), чистить на `logout`.
+- Избегать дублей: при добавлении по событию проверять существование по `id`; при сомнении — рефреш из API.
+- Persist: сохранять только необходимые части состояния (например, `token`, `user`, `isAuthenticated`).
