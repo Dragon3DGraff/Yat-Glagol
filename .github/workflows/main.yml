@@ -58,6 +58,12 @@ jobs:
       - name: Copy server .env to dist
         run: cp server/.env server/dist/.env
 
+      # Копируем package.json и package-lock.json для установки зависимостей на сервере
+      - name: Copy package files to dist
+        run: |
+          cp server/package.json server/dist/package.json
+          cp server/package-lock.json server/dist/package-lock.json
+
       - name: Deploy Server
         uses: appleboy/scp-action@master
         with:
@@ -68,6 +74,18 @@ jobs:
           target: ${{ env.DEPLOY_SERVER_PATH }}
           rm: false
           strip_components: 1
+
+      # Устанавливаем зависимости на сервере
+      - name: Install Server Dependencies
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          script: |
+            cd ${{ env.DEPLOY_SERVER_PATH }}
+            npm ci --production
+            pm2 restart all || pm2 start index.js --name "yat-glagol-server"
 
       - name: Deploy client
         uses: appleboy/scp-action@master
