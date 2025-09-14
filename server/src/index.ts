@@ -3,15 +3,26 @@ import dotenv from "dotenv"
 // Загружаем переменные окружения первым делом
 dotenv.config()
 
+// Инициализируем логгер как можно раньше
+import logger, {
+  logStartup,
+  logDatabase,
+  logSocket,
+  logError,
+  logWarning,
+  logAuth,
+  logRequest,
+} from "./utils/logger"
+
 // Отладочная информация для переменных окружения
 if (process.env.NODE_ENV === "development") {
-  console.log("[ENV DEBUG] NODE_ENV:", process.env.NODE_ENV)
-  console.log(
+  logger.debug("[ENV DEBUG] NODE_ENV:", process.env.NODE_ENV)
+  logger.debug(
     "[ENV DEBUG] JWT_SECRET:",
     process.env.JWT_SECRET ? "Set" : "Not Set"
   )
-  console.log("[ENV DEBUG] Database: Sequelize ORM")
-  console.log("[ENV DEBUG] CLIENT_URL:", process.env.CLIENT_URL)
+  logger.debug("[ENV DEBUG] Database: Sequelize ORM")
+  logger.debug("[ENV DEBUG] CLIENT_URL:", process.env.CLIENT_URL)
 }
 
 import express from "express"
@@ -83,7 +94,7 @@ const limiter = rateLimit({
 })
 
 if (isDevMode) {
-  console.log(`🔓 [SERVER] Rate limiting отключен для режима разработки`)
+  logWarning("[SERVER] Rate limiting отключен для режима разработки")
 }
 app.use(limiter)
 
@@ -93,7 +104,14 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
 // Инициализация базы данных
 const dbManager = new SequelizeAdapter()
 
-console.log("🗄️  Используется Sequelize ORM для работы с базой данных")
+logDatabase("Используется Sequelize ORM для работы с базой данных")
+
+// Middleware для логгирования HTTP запросов
+app.use((req, res, next) => {
+  const userId = (req as any).userId
+  logRequest(req.method, req.originalUrl, userId)
+  next()
+})
 
 // Маршруты
 app.use("/api/auth", authRoutes)
@@ -108,7 +126,7 @@ app.get("/api/health", (req, res) => {
 
 // Mock data info (только для dev режима) - теперь использует Sequelize
 app.get("/api/mock-info", (req, res) => {
-  console.log("Mock data info requested - but using Sequelize now")
+  logger.warn("Mock data info requested - but using Sequelize now")
   res.status(404).json({
     error: "Mock data не доступна, используется Sequelize ORM",
   })
@@ -122,7 +140,7 @@ const webrtcSignaling = new WebRTCSignaling(io, dbManager)
 io.use(AuthMiddleware.authenticateSocket as any)
 
 io.on("connection", (socket: any) => {
-  console.log(`Пользователь подключился: ${socket.userId}`)
+  logSocket(`Пользователь подключился: ${socket.userId}`)
 
   // Обновляем статус пользователя
   dbManager.updateUserStatus(socket.userId, "online")
@@ -135,7 +153,7 @@ io.on("connection", (socket: any) => {
 
   // Обработка отключения
   socket.on("disconnect", () => {
-    console.log(`Пользователь отключился: ${socket.userId}`)
+    logSocket(`Пользователь отключился: ${socket.userId}`)
     dbManager.updateUserStatus(socket.userId, "offline")
     webrtcSignaling.handleDisconnection(socket)
   })
@@ -149,7 +167,7 @@ app.use(
     res: express.Response,
     next: express.NextFunction
   ) => {
-    console.error(err.stack)
+    logError("Unhandled server error", err)
     res.status(500).json({
       error: "Внутренняя ошибка сервера",
       ...(process.env.NODE_ENV === "development" && { details: err.message }),
@@ -159,28 +177,40 @@ app.use(
 
 // Запуск сервера
 server.listen(PORT, () => {
-  console.log(`🚀 Сервер Ять-глагол запущен на порту ${PORT}`)
-  console.log(`📡 WebSocket сервер готов к подключениям`)
+  logStartup(`Сервер Ять-глагол запущен на порту ${PORT}`)
+  logSocket("WebSocket сервер готов к подключениям")
 
   // Инициализация базы данных
   dbManager
     .initialize()
     .then(() => {
-      console.log("✅ Sequelize база данных инициализирована")
+      logDatabase("Sequelize база данных инициализирована")
     })
     .catch((error: any) => {
-      console.error("❌ Ошибка инициализации Sequelize базы данных:", error)
+      logError("Ошибка инициализации Sequelize базы данных", error)
       process.exit(1)
     })
 })
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-  console.log("SIGTERM получен, завершаем сервер...")
+  logStartup("SIGTERM получен, завершаем сервер...")
   server.close(() => {
-    console.log("Сервер завершен")
+    logStartup("Сервер завершен")
     process.exit(0)
   })
+})
+
+// Обработка необработанных исключений
+process.on("uncaughtException", (error) => {
+  logError("Необработанное исключение", error)
+  process.exit(1)
+})
+
+// Обработка необработанных Promise rejection'ов
+process.on("unhandledRejection", (reason, promise) => {
+  logError("Необработанное отклонение Promise", { reason, promise })
+  process.exit(1)
 })
 
 export { app, io, dbManager }
