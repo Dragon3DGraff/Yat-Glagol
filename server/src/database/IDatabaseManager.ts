@@ -83,6 +83,13 @@ export interface IDatabaseManager {
     content: string,
     messageType?: string
   ): Promise<IMessage>
+  updateMessage(
+    messageId: number,
+    userId: number,
+    newContent: string
+  ): Promise<boolean>
+  deleteMessage(messageId: number, userId: number): Promise<boolean>
+  getMessageById(messageId: number): Promise<any | null>
 
   // Поиск
   searchUsers(query: string): Promise<any[]>
@@ -106,4 +113,13 @@ export interface IDatabaseManager {
   unblockUser(userId: number, unblockedUserId: number): Promise<boolean>
   getFriendshipStatus(userId: number, otherUserId: number): Promise<string>
   createFriendRoom(userId: number, friendId: number): Promise<number>
+
+  // Дополнительные методы для совместимости
+  getUserChatRooms(userId: number): Promise<any[]>
+  getRoomParticipants(roomId: number): Promise<any[]>
+  getRoomMessages(roomId: number, limit?: number): Promise<any[]>
+  createChatRoom(name: string, type: string, createdBy: number): Promise<any>
+  getChatRoom(roomId: number): Promise<any | null>
+  addRoomParticipant(roomId: number, userId: number): Promise<void>
+  searchMessages(query: string, roomId?: number): Promise<any[]>
 }

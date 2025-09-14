@@ -189,21 +189,38 @@ export class SequelizeAdapter implements IDatabaseManager {
     }
   }
 
-  // Поиск пользователей (простая заглушка)
+  // Поиск пользователей
   async searchUsers(query: string): Promise<any[]> {
-    // TODO: Реализовать поиск в Sequelize
-    return []
+    return await this.sequelizeManager.searchUsers(query)
   }
 
   // Друзья
   async getFriends(userId: number): Promise<any[]> {
-    const friends = await this.sequelizeManager.getFriends(userId)
-    return friends.map((friend) => ({
-      id: friend.id,
-      username: friend.username,
-      status: friend.status,
-      avatar: friend.avatar,
-    }))
+    try {
+      console.log(`👥 [ADAPTER] getFriends для пользователя ${userId}`)
+      const friends = await this.sequelizeManager.getFriends(userId)
+      console.log(
+        `👥 [ADAPTER] Получено ${friends.length} друзей от SequelizeManager`
+      )
+
+      const result = friends.map((friend) => ({
+        // Приводим к минимальному виду, ожидаемому клиентом
+        id: friend.id,
+        username: friend.username,
+        status: friend.status,
+        avatar: friend.avatar,
+      }))
+
+      console.log(`👥 [ADAPTER] Возвращаем ${result.length} друзей`)
+      return result
+    } catch (error) {
+      console.error(
+        `❌ [ADAPTER] Ошибка в getFriends для пользователя ${userId}:`,
+        error
+      )
+      // Возвращаем пустой список вместо выброса, чтобы API не падало 500
+      return []
+    }
   }
 
   async getFriendRequests(userId: number): Promise<any[]> {
@@ -218,8 +235,14 @@ export class SequelizeAdapter implements IDatabaseManager {
   }
 
   async getSentFriendRequests(userId: number): Promise<any[]> {
-    // TODO: Реализовать в SequelizeDatabaseManager
-    return []
+    const requests = await this.sequelizeManager.getSentFriendRequests(userId)
+    return requests.map((req) => ({
+      id: req.id,
+      to_user_id: req.toUser.id,
+      to_username: req.toUser.username,
+      to_avatar: req.toUser.avatar,
+      created_at: req.createdAt,
+    }))
   }
 
   async sendFriendRequest(
@@ -227,54 +250,49 @@ export class SequelizeAdapter implements IDatabaseManager {
     toUserId: number,
     message?: string
   ): Promise<number> {
-    // В SequelizeDatabaseManager используется username, здесь нужна адаптация
-    // TODO: Найти username по ID и отправить запрос
-    throw new Error("Not implemented: use sendFriendRequest with username")
+    return await this.sequelizeManager.sendFriendRequest(
+      fromUserId,
+      toUserId,
+      message
+    )
   }
 
   async acceptFriendRequest(
     requestId: number,
     userId: number
   ): Promise<{ friendship: any; roomId?: number }> {
-    await this.sequelizeManager.acceptFriendRequest(userId, requestId)
-    return { friendship: {}, roomId: undefined }
+    return await this.sequelizeManager.acceptFriendRequest(requestId, userId)
   }
 
-  // Остальные методы - заглушки для совместимости
+  // Остальные методы - теперь реализованы
   async declineFriendRequest(
     requestId: number,
     userId: number
   ): Promise<boolean> {
-    // TODO: Реализовать
-    return false
+    return await this.sequelizeManager.declineFriendRequest(requestId, userId)
   }
 
   async removeFriend(userId: number, friendId: number): Promise<boolean> {
-    // TODO: Реализовать
-    return false
+    return await this.sequelizeManager.removeFriend(userId, friendId)
   }
 
   async blockUser(userId: number, blockedUserId: number): Promise<boolean> {
-    // TODO: Реализовать
-    return false
+    return await this.sequelizeManager.blockUser(userId, blockedUserId)
   }
 
   async unblockUser(userId: number, unblockedUserId: number): Promise<boolean> {
-    // TODO: Реализовать
-    return false
+    return await this.sequelizeManager.unblockUser(userId, unblockedUserId)
   }
 
   async getFriendshipStatus(
     userId: number,
     otherUserId: number
   ): Promise<string> {
-    // TODO: Реализовать
-    return "none"
+    return await this.sequelizeManager.getFriendshipStatus(userId, otherUserId)
   }
 
   async createFriendRoom(userId: number, friendId: number): Promise<number> {
-    // TODO: Реализовать
-    return 0
+    return await this.sequelizeManager.createFriendRoom(userId, friendId)
   }
 
   // Дополнительные методы для совместимости с routes
@@ -293,9 +311,9 @@ export class SequelizeAdapter implements IDatabaseManager {
       roomId
     )
     return participants.map((p) => ({
-      id: (p as any).user.id,
-      username: (p as any).user.username,
-      avatar: (p as any).user.avatar,
+      id: (p as any).id,
+      username: (p as any).username,
+      avatar: (p as any).avatar,
     }))
   }
 
@@ -304,15 +322,15 @@ export class SequelizeAdapter implements IDatabaseManager {
       roomId,
       limit
     )
-    return messages.map((msg) => ({
+    return messages.map((msg: any) => ({
       id: msg.id,
       content: msg.content,
       message_type: msg.type,
       created_at: msg.createdAt,
       author: {
-        id: (msg as any).author.id,
-        username: (msg as any).author.username,
-        avatar: (msg as any).author.avatar,
+        id: msg.author.id,
+        username: msg.author.username,
+        avatar: msg.author.avatar,
       },
     }))
   }
@@ -378,13 +396,23 @@ export class SequelizeAdapter implements IDatabaseManager {
       }))
   }
 
-  async updateMessage(messageId: number, newContent: string): Promise<void> {
-    // Пока что заглушка - можно реализовать позже через Sequelize
-    console.log(`Updating message ${messageId} with content: ${newContent}`)
+  async updateMessage(
+    messageId: number,
+    userId: number,
+    newContent: string
+  ): Promise<boolean> {
+    return await this.sequelizeManager.updateMessage(
+      messageId,
+      userId,
+      newContent
+    )
   }
 
-  async deleteMessage(messageId: number): Promise<void> {
-    // Пока что заглушка - можно реализовать позже через Sequelize
-    console.log(`Deleting message ${messageId}`)
+  async deleteMessage(messageId: number, userId: number): Promise<boolean> {
+    return await this.sequelizeManager.deleteMessage(messageId, userId)
+  }
+
+  async getMessageById(messageId: number): Promise<any | null> {
+    return await this.sequelizeManager.getMessageById(messageId)
   }
 }

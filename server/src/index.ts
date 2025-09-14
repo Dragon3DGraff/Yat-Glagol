@@ -33,6 +33,7 @@ import helmet from "helmet"
 import rateLimit from "express-rate-limit"
 import path from "path"
 import { SequelizeAdapter } from "./database/SequelizeAdapter"
+import { MockAdapter } from "./mock/MockAdapter"
 import { AuthMiddleware } from "./middleware/AuthMiddleware"
 import { SocketHandler } from "./socket/SocketHandler"
 import { WebRTCSignaling } from "./webrtc/WebRTCSignaling"
@@ -49,6 +50,11 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  // Улучшенные настройки для продакшена
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
 })
 
 const PORT = process.env.PORT || 3001
@@ -102,9 +108,18 @@ app.use(limiter)
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
 
 // Инициализация базы данных
-const dbManager = new SequelizeAdapter()
+const useMockDB = process.env.USE_MOCK_DB === "true"
+const dbManager = useMockDB ? new MockAdapter() : new SequelizeAdapter()
 
-logDatabase("Используется Sequelize ORM для работы с базой данных")
+console.log("🔧 [DEBUG] USE_MOCK_DB:", process.env.USE_MOCK_DB)
+console.log("🔧 [DEBUG] NODE_ENV:", process.env.NODE_ENV)
+console.log("🔧 [DEBUG] useMockDB:", useMockDB)
+
+if (useMockDB) {
+  logDatabase("Используется Mock Database для локального тестирования")
+} else {
+  logDatabase("Используется Sequelize ORM для работы с базой данных")
+}
 
 // Middleware для логгирования HTTP запросов
 app.use((req, res, next) => {
@@ -187,10 +202,18 @@ server.listen(PORT, () => {
   dbManager
     .initialize()
     .then(() => {
-      logDatabase("Sequelize база данных инициализирована")
+      if (useMockDB) {
+        logDatabase("Mock база данных инициализирована")
+      } else {
+        logDatabase("Sequelize база данных инициализирована")
+      }
     })
     .catch((error: any) => {
-      logError("Ошибка инициализации Sequelize базы данных", error)
+      if (useMockDB) {
+        logError("Ошибка инициализации Mock базы данных", error)
+      } else {
+        logError("Ошибка инициализации Sequelize базы данных", error)
+      }
       process.exit(1)
     })
 })

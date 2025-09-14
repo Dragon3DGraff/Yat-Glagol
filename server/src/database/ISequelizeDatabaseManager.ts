@@ -62,9 +62,7 @@ export interface ISequelizeDatabaseManager {
     email: string,
     password: string
   ): Promise<{ id: number; username: string; email: string }>
-  getUserByUsername(
-    username: string
-  ): Promise<{
+  getUserByUsername(username: string): Promise<{
     id: number
     username: string
     email: string
@@ -84,9 +82,7 @@ export interface ISequelizeDatabaseManager {
     description?: string
   ): Promise<{ id: number; name: string; isPrivate: boolean }>
   getChatRoomsByUserId(userId: number): Promise<Array<ISequelizeChatRoom>>
-  getChatRoomParticipants(
-    roomId: number
-  ): Promise<
+  getChatRoomParticipants(roomId: number): Promise<
     Array<{
       id: number
       username: string
@@ -117,8 +113,49 @@ export interface ISequelizeDatabaseManager {
   ): Promise<Array<ISequelizeMessage>>
 
   // Друзья
-  sendFriendRequest(userId: number, friendUsername: string): Promise<void>
-  acceptFriendRequest(userId: number, requestId: number): Promise<void>
+  sendFriendRequest(
+    userId: number,
+    friendId: number,
+    message?: string
+  ): Promise<number>
+  acceptFriendRequest(
+    requestId: number,
+    userId: number
+  ): Promise<{ friendship: any; roomId: number }>
   getFriends(userId: number): Promise<Array<ISequelizeFriend>>
   getFriendRequests(userId: number): Promise<Array<ISequelizeFriendRequest>>
+  getSentFriendRequests(userId: number): Promise<
+    Array<{
+      id: number
+      toUser: { id: number; username: string; avatar?: string }
+      createdAt: Date
+    }>
+  >
+  declineFriendRequest(requestId: number, userId: number): Promise<boolean>
+  removeFriend(userId: number, friendId: number): Promise<boolean>
+  blockUser(userId: number, blockedUserId: number): Promise<boolean>
+  unblockUser(userId: number, unblockedUserId: number): Promise<boolean>
+  getFriendshipStatus(userId: number, otherUserId: number): Promise<string>
+  createFriendRoom(userId: number, friendId: number): Promise<number>
+
+  // Поиск
+  searchUsers(query: string): Promise<
+    Array<{
+      id: number
+      username: string
+      email: string
+      avatar_url?: string
+      status: string
+      created_at: Date
+    }>
+  >
+
+  // Дополнительные методы для сообщений
+  updateMessage(
+    messageId: number,
+    userId: number,
+    newContent: string
+  ): Promise<boolean>
+  deleteMessage(messageId: number, userId: number): Promise<boolean>
+  getMessageById(messageId: number): Promise<any | null>
 }

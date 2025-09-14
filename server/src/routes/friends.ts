@@ -52,7 +52,12 @@ router.get(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.userId!
+      console.log(`👥 [API] GET /friends для пользователя ${userId}`)
+
       const friends = await dbManager.getFriends(userId)
+      console.log(
+        `👥 [API] Получено ${friends.length} друзей для пользователя ${userId}`
+      )
 
       res.json({
         success: true,

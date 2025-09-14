@@ -55,11 +55,19 @@ export class MockDatabaseManager {
   private nextRoomId = 1
   private nextMessageId = 1
 
+  private getNextId(): number {
+    return Math.max(this.nextUserId, this.nextRoomId, this.nextMessageId) + 1
+  }
+
   constructor() {
     this.encryptionKey =
       (process?.env?.ENCRYPTION_KEY as string) ||
       "mock-encryption-key-for-development"
-    this.initializeMockData()
+  }
+
+  async initialize(): Promise<void> {
+    await this.initializeMockData()
+    console.log("✅ Mock Database инициализирован с тестовыми данными")
   }
 
   private async initializeMockData() {
@@ -113,6 +121,82 @@ export class MockDatabaseManager {
         last_seen: new Date(),
       })
     }
+
+    // Создаем тестовые дружеские связи
+    await this.createTestFriendships()
+  }
+
+  private async createTestFriendships() {
+    // Alice и Bob - друзья
+    const aliceBobRoomId = await this.createFriendRoom(1, 2)
+
+    // Создаем дружбу Alice -> Bob
+    const friendship1 = {
+      id: this.friendshipIdCounter++,
+      user_id: 1,
+      friend_id: 2,
+      status: "accepted",
+      room_id: aliceBobRoomId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+    this.friendships.set(friendship1.id.toString(), friendship1)
+
+    // Создаем дружбу Bob -> Alice
+    const friendship2 = {
+      id: this.friendshipIdCounter++,
+      user_id: 2,
+      friend_id: 1,
+      status: "accepted",
+      room_id: aliceBobRoomId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+    this.friendships.set(friendship2.id.toString(), friendship2)
+
+    // Charlie и Diana - друзья
+    const charlieDianaRoomId = await this.createFriendRoom(3, 4)
+
+    // Создаем дружбу Charlie -> Diana
+    const friendship3 = {
+      id: this.friendshipIdCounter++,
+      user_id: 3,
+      friend_id: 4,
+      status: "accepted",
+      room_id: charlieDianaRoomId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+    this.friendships.set(friendship3.id.toString(), friendship3)
+
+    // Создаем дружбу Diana -> Charlie
+    const friendship4 = {
+      id: this.friendshipIdCounter++,
+      user_id: 4,
+      friend_id: 3,
+      status: "accepted",
+      room_id: charlieDianaRoomId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+    this.friendships.set(friendship4.id.toString(), friendship4)
+
+    // Создаем запрос на дружбу от Alice к Charlie
+    const request1 = {
+      id: this.requestIdCounter++,
+      from_user_id: 1,
+      to_user_id: 3,
+      status: "pending",
+      message: "Привет! Давай дружить!",
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+    this.friendRequests.set(request1.id.toString(), request1)
+
+    console.log("✅ Созданы тестовые дружеские связи:")
+    console.log("  - Alice и Bob - друзья")
+    console.log("  - Charlie и Diana - друзья")
+    console.log("  - Alice отправила запрос Charlie")
   }
 
   private encrypt(text: string): string {
@@ -408,13 +492,17 @@ export class MockDatabaseManager {
   }
 
   async searchMessages(
-    roomId: number,
     query: string,
+    roomId?: number,
     limit: number = 20
   ): Promise<MockMessage[]> {
-    const roomMessages = await this.getRoomMessages(roomId, limit * 3) // Получаем больше для фильтрации
+    let messages = Array.from(this.messages.values())
 
-    const filteredMessages = roomMessages
+    if (roomId) {
+      messages = messages.filter((msg) => msg.room_id === roomId)
+    }
+
+    const filteredMessages = messages
       .filter((msg) => msg.content.toLowerCase().includes(query.toLowerCase()))
       .slice(0, limit)
 
@@ -526,20 +614,10 @@ export class MockDatabaseManager {
       if (fromUser) {
         result.push({
           id: request.id,
-          fromUserId: request.from_user_id,
-          toUserId: request.to_user_id,
-          status: request.status,
-          message: request.message,
-          createdAt: request.created_at,
-          fromUser: {
-            id: fromUser.id,
-            username: fromUser.username,
-            email: fromUser.email,
-            avatar_url: fromUser.avatar_url,
-            status: fromUser.status,
-            last_seen: fromUser.last_active,
-            created_at: fromUser.created_at,
-          },
+          from_user_id: request.from_user_id,
+          from_username: fromUser.username,
+          from_avatar: fromUser.avatar_url,
+          created_at: request.created_at,
         })
       }
     }
@@ -558,20 +636,10 @@ export class MockDatabaseManager {
       if (toUser) {
         result.push({
           id: request.id,
-          fromUserId: request.from_user_id,
-          toUserId: request.to_user_id,
-          status: request.status,
-          message: request.message,
-          createdAt: request.created_at,
-          toUser: {
-            id: toUser.id,
-            username: toUser.username,
-            email: toUser.email,
-            avatar_url: toUser.avatar_url,
-            status: toUser.status,
-            last_seen: toUser.last_active,
-            created_at: toUser.created_at,
-          },
+          to_user_id: request.to_user_id,
+          to_username: toUser.username,
+          to_avatar: toUser.avatar_url,
+          created_at: request.created_at,
         })
       }
     }

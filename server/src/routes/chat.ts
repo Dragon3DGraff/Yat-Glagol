@@ -444,7 +444,7 @@ router.put(
       const { content } = req.body
       const userId = req.userId!
 
-      await dbManager.updateMessage(messageId, content)
+      await dbManager.updateMessage(messageId, userId, content)
 
       // Успешно обновлено
       res.json({ message: "Сообщение обновлено" })
@@ -473,7 +473,7 @@ router.delete(
       const messageId = parseInt(req.params.messageId)
       const userId = req.userId!
 
-      await dbManager.deleteMessage(messageId)
+      await dbManager.deleteMessage(messageId, userId)
 
       // Успешно удалено
       res.json({ message: "Сообщение удалено" })
