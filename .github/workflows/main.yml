@@ -90,19 +90,20 @@ jobs:
             source ~/.profile 2>/dev/null || true
             source ~/.bash_profile 2>/dev/null || true
 
-            # Добавляем стандартные пути Node.js
-            export PATH="/usr/local/bin:/opt/nodejs/bin:/usr/bin:/bin:$PATH"
+            # Добавляем пути Node.js (включая Passenger путь)
+            export PATH="$HOME/.local/bin:/usr/local/bin:/opt/nodejs/bin:/usr/bin:/bin:$PATH"
             export PATH="$HOME/.nvm/versions/node/*/bin:$PATH"
             export PATH="/usr/local/nodejs/bin:$PATH"
 
             echo "Текущий PATH: $PATH"
 
-            # Ищем Node.js в различных местах
+            # Ищем Node.js в различных местах (приоритет домашней папке)
             NODE_PATH=""
-            for path in "/usr/local/bin/node" "/usr/bin/node" "/opt/nodejs/bin/node" "$HOME/.nvm/versions/node/*/bin/node" "/usr/local/nodejs/bin/node"; do
+            for path in "$HOME/.local/bin/node" "/usr/local/bin/node" "/usr/bin/node" "/opt/nodejs/bin/node" "$HOME/.nvm/versions/node/*/bin/node" "/usr/local/nodejs/bin/node"; do
                 if [ -f "$path" ] 2>/dev/null || [ -f $(echo $path) ] 2>/dev/null; then
                     NODE_PATH=$(dirname "$path")
                     export PATH="$NODE_PATH:$PATH"
+                    echo "Найден Node.js в: $path"
                     break
                 fi
             done
@@ -134,26 +135,33 @@ jobs:
             # Устанавливаем только production зависимости
             npm ci --production --silent
 
-            echo "=== Управление процессом ==="
-            # Простой перезапуск без PM2
-            echo "Останавливаем старые процессы..."
-            pkill -f "node.*index.js" 2>/dev/null || true
-            sleep 2
+            echo "=== Перезапуск Passenger приложения ==="
 
-            echo "Запускаем новый процесс..."
-            nohup node index.js > server.log 2>&1 &
-            NEW_PID=$!
-            echo "Сервер запущен с PID: $NEW_PID"
+            # Passenger перезапускается при изменении файлов
+            # Создаем/обновляем restart.txt для принудительного перезапуска
+            mkdir -p tmp
+            touch tmp/restart.txt
+            echo "✅ Создан файл для перезапуска Passenger"
 
-            # Проверяем, что процесс запустился
-            sleep 3
-            if kill -0 $NEW_PID 2>/dev/null; then
-                echo "✅ Сервер успешно запущен"
-            else
-                echo "❌ Ошибка запуска сервера, проверьте логи:"
-                tail -20 server.log 2>/dev/null || echo "Лог файл не найден"
-                exit 1
+            # Также можно создать файл package.json в корне для Passenger
+            if [ ! -f "package.json" ]; then
+                echo "Создаем package.json для Passenger..."
+                cat > package.json << 'EOF'
+            {
+              "name": "yat-glagol-server",
+              "version": "1.0.0",
+              "description": "Yat-Glagol Chat Server",
+              "main": "index.js",
+              "scripts": {
+                "start": "node index.js"
+              }
+            }
+            EOF
+                echo "✅ Создан package.json"
             fi
+
+            echo "✅ Приложение готово к перезапуску Passenger"
+            echo "Passenger автоматически перезапустит приложение при следующем запросе"
 
       - name: Deploy client
         uses: appleboy/scp-action@master
