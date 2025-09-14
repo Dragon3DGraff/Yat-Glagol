@@ -5,8 +5,7 @@
     "main": "dist/index.js",
     "scripts": {
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-        "build": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --external:mysql2 --external:sequelize",
-        "build:old": "tsc",
+        "build": "tsc",
         "start": "node dist/index.js"
     },
     "dependencies": {
@@ -34,7 +33,6 @@
         "typescript": "^5.3.3",
         "ts-node-dev": "^2.0.0",
         "@types/node": "^20.10.5",
-        "esbuild": "^0.19.8",
         "sequelize": "^6.35.1",
         "@types/sequelize": "^4.28.15"
     }

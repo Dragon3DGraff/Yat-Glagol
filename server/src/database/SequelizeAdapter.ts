@@ -19,7 +19,8 @@ export class SequelizeAdapter implements IDatabaseManager {
   }
 
   async initialize(): Promise<void> {
-    return this.sequelizeManager.initialize()
+    await this.sequelizeManager.initialize()
+    console.log("✅ Sequelize успешно инициализирован")
   }
 
   async close(): Promise<void> {
