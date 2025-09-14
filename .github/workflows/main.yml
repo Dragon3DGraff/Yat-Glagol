@@ -61,7 +61,6 @@ jobs:
           mkdir -p deploy-server
           # Копируем собранный бандл (единый файл)
           cp server/dist/index.js deploy-server/
-          cp server/node_modules/ deploy-server/
           # Копируем .env файл  
           cp server/.env deploy-server/
           # Копируем package.json для mysql2
@@ -76,6 +75,17 @@ jobs:
           username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
           key: ${{ secrets.DEPLOY_SERVER_KEY }}
           source: deploy-server
+          target: ${{ env.DEPLOY_SERVER_PATH }}
+          rm: false
+          strip_components: 1
+
+      - name: Deploy Server Node Modules
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
+          key: ${{ secrets.DEPLOY_SERVER_KEY }}
+          source: deploy-server/node_modules
           target: ${{ env.DEPLOY_SERVER_PATH }}
           rm: false
           strip_components: 1
