@@ -39,7 +39,7 @@ router.get(
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.userId!
-      const user = await dbManager.getUserById(userId)
+      const user = await dbManager.getUserById(userId.toString())
 
       if (!user) {
         res.status(404).json({ error: "Пользователь не найден" })
@@ -84,7 +84,7 @@ router.get(
       }
 
       const userId = parseInt(req.params.userId)
-      const user = await dbManager.getUserById(userId)
+      const user = await dbManager.getUserById(userId.toString())
 
       if (!user) {
         res.status(404).json({ error: "Пользователь не найден" })
@@ -210,7 +210,7 @@ router.put(
       const userId = req.userId!
       const { status } = req.body
 
-      await dbManager.updateUserStatus(userId, status)
+      await dbManager.updateUserStatus(userId.toString(), status)
 
       res.json({ message: "Статус обновлен успешно", status })
     } catch (error) {

@@ -109,12 +109,8 @@ router.post(
       const { name, description = "", type } = req.body
       const userId = req.userId!
 
-      const roomId = await dbManager.createChatRoom(
-        name,
-        description,
-        type,
-        userId
-      )
+      const newRoom = await dbManager.createChatRoom(name, type, userId)
+      const roomId = newRoom.id
       const room = await dbManager.getChatRoom(roomId)
 
       res.status(201).json({
@@ -222,7 +218,7 @@ router.post(
         return
       }
 
-      await dbManager.addRoomParticipant(roomId, targetUserId, role)
+      await dbManager.addRoomParticipant(roomId, targetUserId)
 
       res.json({
         message: "Участник добавлен в комнату",
@@ -314,7 +310,7 @@ router.get(
         return
       }
 
-      const messages = await dbManager.getRoomMessages(roomId, limit, offset)
+      const messages = await dbManager.getRoomMessages(roomId, limit)
 
       res.json({
         messages,
@@ -356,14 +352,13 @@ router.post(
         return
       }
 
-      const messageId = await dbManager.createMessage(
-        roomId,
-        userId,
+      const message = await dbManager.createMessage(
+        roomId.toString(),
+        userId.toString(),
         content,
-        messageType,
-        replyTo
+        messageType
       )
-      const messages = await dbManager.getRoomMessages(roomId, 1, 0)
+      const messages = await dbManager.getRoomMessages(roomId, 1)
       const newMessage = messages[0]
 
       res.status(201).json({
@@ -413,7 +408,7 @@ router.get(
         return
       }
 
-      const messages = await dbManager.searchMessages(roomId, query, limit)
+      const messages = await dbManager.searchMessages(query, roomId)
 
       res.json({
         query,
@@ -449,15 +444,10 @@ router.put(
       const { content } = req.body
       const userId = req.userId!
 
-      const success = await dbManager.updateMessage(messageId, userId, content)
+      await dbManager.updateMessage(messageId, content)
 
-      if (success) {
-        res.json({ message: "Сообщение обновлено" })
-      } else {
-        res.status(404).json({
-          error: "Сообщение не найдено или нет прав на редактирование",
-        })
-      }
+      // Успешно обновлено
+      res.json({ message: "Сообщение обновлено" })
     } catch (error) {
       console.error("Ошибка редактирования сообщения:", error)
       res.status(500).json({ error: "Ошибка редактирования сообщения" })
@@ -483,15 +473,10 @@ router.delete(
       const messageId = parseInt(req.params.messageId)
       const userId = req.userId!
 
-      const success = await dbManager.deleteMessage(messageId, userId)
+      await dbManager.deleteMessage(messageId)
 
-      if (success) {
-        res.json({ message: "Сообщение удалено" })
-      } else {
-        res
-          .status(404)
-          .json({ error: "Сообщение не найдено или нет прав на удаление" })
-      }
+      // Успешно удалено
+      res.json({ message: "Сообщение удалено" })
     } catch (error) {
       console.error("Ошибка удаления сообщения:", error)
       res.status(500).json({ error: "Ошибка удаления сообщения" })

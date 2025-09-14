@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === "development") {
     "[ENV DEBUG] JWT_SECRET:",
     process.env.JWT_SECRET ? "Set" : "Not Set"
   )
-  console.log("[ENV DEBUG] USE_MOCK_DB:", process.env.USE_MOCK_DB)
+  console.log("[ENV DEBUG] Database: Sequelize ORM")
   console.log("[ENV DEBUG] CLIENT_URL:", process.env.CLIENT_URL)
 }
 
@@ -22,8 +22,6 @@ import helmet from "helmet"
 import rateLimit from "express-rate-limit"
 import path from "path"
 import { SequelizeAdapter } from "./database/SequelizeAdapter"
-import { MockDatabaseManager } from "./mock/MockDatabaseManager"
-import { IDatabaseManager } from "./database/IDatabaseManager"
 import { AuthMiddleware } from "./middleware/AuthMiddleware"
 import { SocketHandler } from "./socket/SocketHandler"
 import { WebRTCSignaling } from "./webrtc/WebRTCSignaling"
@@ -72,8 +70,7 @@ app.use(express.json({ limit: "10mb" }))
 app.use(express.urlencoded({ extended: true, limit: "10mb" }))
 
 // Rate limiting
-const isDevMode =
-  process.env.NODE_ENV === "development" || process.env.USE_MOCK_DB === "true"
+const isDevMode = process.env.NODE_ENV === "development"
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: isDevMode ? 10000 : 100, // 10000 в dev режиме, 100 в production
@@ -94,15 +91,9 @@ app.use(limiter)
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")))
 
 // Инициализация базы данных
-const USE_MOCK_DB =
-  process.env.USE_MOCK_DB === "true" || process.env.NODE_ENV === "development"
-const dbManager = USE_MOCK_DB
-  ? new MockDatabaseManager()
-  : new SequelizeAdapter()
+const dbManager = new SequelizeAdapter()
 
-console.log(
-  `🗄️  Используется ${USE_MOCK_DB ? "моковая" : "реальная"} база данных`
-)
+console.log("🗄️  Используется Sequelize ORM для работы с базой данных")
 
 // Маршруты
 app.use("/api/auth", authRoutes)
@@ -115,22 +106,17 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() })
 })
 
-// Mock data info (только для dev режима)
+// Mock data info (только для dev режима) - теперь использует Sequelize
 app.get("/api/mock-info", (req, res) => {
-  console.log("Mock data info requested")
-  if (USE_MOCK_DB) {
-    const mockInfo = (dbManager as MockDatabaseManager).getMockDataInfo()
-    res.json(mockInfo)
-  } else {
-    res
-      .status(404)
-      .json({ error: "Mock data not available in production mode" })
-  }
+  console.log("Mock data info requested - but using Sequelize now")
+  res.status(404).json({
+    error: "Mock data не доступна, используется Sequelize ORM",
+  })
 })
 
 // Socket.IO обработка
-const socketHandler = new SocketHandler(io, dbManager as any)
-const webrtcSignaling = new WebRTCSignaling(io, dbManager as any)
+const socketHandler = new SocketHandler(io, dbManager)
+const webrtcSignaling = new WebRTCSignaling(io, dbManager)
 
 // Обработка подключений
 io.use(AuthMiddleware.authenticateSocket as any)
@@ -139,14 +125,7 @@ io.on("connection", (socket: any) => {
   console.log(`Пользователь подключился: ${socket.userId}`)
 
   // Обновляем статус пользователя
-  if (USE_MOCK_DB) {
-    ;(dbManager as MockDatabaseManager).updateUserStatus(
-      socket.userId,
-      "online"
-    )
-  } else {
-    ;(dbManager as SequelizeAdapter).updateUserStatus(socket.userId, "online")
-  }
+  dbManager.updateUserStatus(socket.userId, "online")
 
   // Присоединяем пользователя к его комнатам
   socketHandler.handleUserConnection(socket)
@@ -157,17 +136,7 @@ io.on("connection", (socket: any) => {
   // Обработка отключения
   socket.on("disconnect", () => {
     console.log(`Пользователь отключился: ${socket.userId}`)
-    if (USE_MOCK_DB) {
-      ;(dbManager as MockDatabaseManager).updateUserStatus(
-        socket.userId,
-        "offline"
-      )
-    } else {
-      ;(dbManager as SequelizeAdapter).updateUserStatus(
-        socket.userId,
-        "offline"
-      )
-    }
+    dbManager.updateUserStatus(socket.userId, "offline")
     webrtcSignaling.handleDisconnection(socket)
   })
 })
@@ -194,21 +163,15 @@ server.listen(PORT, () => {
   console.log(`📡 WebSocket сервер готов к подключениям`)
 
   // Инициализация базы данных
-  if (USE_MOCK_DB) {
-    console.log("✅ Моковая база данных готова к работе")
-    const mockInfo = (dbManager as MockDatabaseManager).getMockDataInfo()
-    console.log("📊 Тестовые данные:", JSON.stringify(mockInfo, null, 2))
-  } else {
-    ;(dbManager as SequelizeAdapter)
-      .initialize()
-      .then(() => {
-        console.log("✅ Sequelize база данных инициализирована")
-      })
-      .catch((error: any) => {
-        console.error("❌ Ошибка инициализации Sequelize базы данных:", error)
-        process.exit(1)
-      })
-  }
+  dbManager
+    .initialize()
+    .then(() => {
+      console.log("✅ Sequelize база данных инициализирована")
+    })
+    .catch((error: any) => {
+      console.error("❌ Ошибка инициализации Sequelize базы данных:", error)
+      process.exit(1)
+    })
 })
 
 // Graceful shutdown

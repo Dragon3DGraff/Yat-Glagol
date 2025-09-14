@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io"
-import { DatabaseManager } from "../database/DatabaseManager"
+import { SequelizeAdapter } from "../database/SequelizeAdapter"
 
 interface AuthenticatedSocket extends Socket {
   userId: number
@@ -39,11 +39,11 @@ interface ActiveCall {
 
 export class WebRTCSignaling {
   private io: Server
-  private db: DatabaseManager
+  private db: SequelizeAdapter
   private activeCalls: Map<number, ActiveCall> = new Map() // roomId -> ActiveCall
   private userCalls: Map<number, number> = new Map() // userId -> roomId
 
-  constructor(io: Server, db: DatabaseManager) {
+  constructor(io: Server, db: SequelizeAdapter) {
     this.io = io
     this.db = db
   }

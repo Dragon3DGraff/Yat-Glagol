@@ -7,6 +7,7 @@ export interface IUser {
   status: string
   created_at: Date
   last_active: Date
+  last_seen?: Date
 }
 
 export interface IChat {

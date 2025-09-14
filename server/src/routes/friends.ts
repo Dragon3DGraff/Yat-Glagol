@@ -267,7 +267,8 @@ router.post(
             request: newRequest,
             fromUser: {
               id: currentUserId,
-              username: (await dbManager.getUserById(currentUserId))?.username,
+              username: (await dbManager.getUserById(currentUserId.toString()))
+                ?.username,
             },
           }
           console.log(

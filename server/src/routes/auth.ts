@@ -118,7 +118,7 @@ router.post(
       const userId = await dbManager.createUser(username, email, hashedPassword)
 
       // Генерируем токен
-      const token = AuthMiddleware.generateToken(userId, email)
+      const token = AuthMiddleware.generateToken(parseInt(userId), email)
 
       // Получаем данные пользователя
       const user = await dbManager.getUserById(userId)
@@ -188,7 +188,7 @@ router.post(
       await dbManager.updateUserStatus(user.id, "online")
 
       // Генерируем токен
-      const token = AuthMiddleware.generateToken(user.id, user.email)
+      const token = AuthMiddleware.generateToken(parseInt(user.id), user.email)
 
       res.json({
         message: "Вход выполнен успешно",
