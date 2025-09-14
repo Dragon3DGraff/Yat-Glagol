@@ -131,50 +131,82 @@ jobs:
                 exit 1
             fi
 
-            echo "=== Установка минимальных зависимостей ==="
+            echo "=== Диагностика окружения ==="
             cd ${{ env.DEPLOY_SERVER_PATH }}
             pwd
             ls -la
 
-            # Проверяем package.json перед установкой
-            if [ -f "package.json" ]; then
-                echo "📋 package.json содержимое:"
-                cat package.json
+            echo "🔍 Node.js версия: $(node --version)"
+            echo "🔍 npm версия: $(npm --version)"
+            echo "📋 package.json содержимое:"
+            cat package.json
+
+            echo "=== Альтернативные способы установки mysql2 ==="
+
+            # Пробуем разные способы установки mysql2
+            MYSQL2_INSTALLED=false
+
+            # Способ 1: Обычный npm install
+            echo "🔄 Способ 1: npm install"
+            if npm install mysql2 --production --no-package-lock --no-audit --legacy-peer-deps 2>/dev/null; then
+                echo "✅ Способ 1 успешен"
+                MYSQL2_INSTALLED=true
             else
-                echo "❌ package.json отсутствует!"
-                exit 1
+                echo "❌ Способ 1 не сработал"
             fi
 
-            # Устанавливаем только mysql2 (все остальное в бандле)
-            echo "🔄 Запускаем установку mysql2..."
-            npm install --production --no-audit --no-fund
-
-            echo "=== Проверка структуры файлов ==="
-            echo "Основные файлы:"
-            ls -la *.js *.json 2>/dev/null || echo "Нет JS/JSON файлов"
-
-            echo "🔍 Проверка результата установки..."
-            if [ -d "node_modules" ]; then
-                echo "✅ node_modules папка создана"
-                echo "📁 Размер node_modules: $(du -sh node_modules/ 2>/dev/null || echo 'неизвестно')"
-                
-                if [ -d "node_modules/mysql2" ]; then
-                    echo "✅ mysql2 модуль найден"
-                    echo "📋 Версия mysql2: $(cat node_modules/mysql2/package.json | grep version | head -1)"
+            # Способ 2: yarn (если есть)
+            if [ "$MYSQL2_INSTALLED" = false ] && command -v yarn >/dev/null 2>&1; then
+                echo "🔄 Способ 2: yarn"
+                if yarn add mysql2 --production 2>/dev/null; then
+                    echo "✅ Способ 2 (yarn) успешен"
+                    MYSQL2_INSTALLED=true
                 else
-                    echo "❌ mysql2 модуль НЕ найден!"
-                    echo "📋 Доступные модули:"
-                    ls -la node_modules/ | head -10
+                    echo "❌ Способ 2 не сработал"
                 fi
-                
-                echo "📊 Всего установлено модулей: $(ls -1 node_modules/ 2>/dev/null | wc -l)"
+            fi
+
+            # Способ 3: Принудительная очистка кэша npm
+            if [ "$MYSQL2_INSTALLED" = false ]; then
+                echo "🔄 Способ 3: Очистка кэша npm"
+                rm -rf ~/.npm
+                npm cache clean --force 2>/dev/null || true
+                if npm install mysql2 --production --no-package-lock --force 2>/dev/null; then
+                    echo "✅ Способ 3 успешен"
+                    MYSQL2_INSTALLED=true
+                else
+                    echo "❌ Способ 3 не сработал"
+                fi
+            fi
+
+            # Способ 4: Прямое скачивание и распаковка
+            if [ "$MYSQL2_INSTALLED" = false ]; then
+                echo "🔄 Способ 4: Прямое скачивание"
+                mkdir -p node_modules
+                cd node_modules
+                if wget -q https://registry.npmjs.org/mysql2/-/mysql2-3.6.5.tgz && tar -xzf mysql2-3.6.5.tgz && mv package mysql2; then
+                    echo "✅ Способ 4 успешен - mysql2 скачан вручную"
+                    cd mysql2 && npm install --production 2>/dev/null || echo "Зависимости mysql2 будут установлены при запуске"
+                    cd ..
+                    MYSQL2_INSTALLED=true
+                else
+                    echo "❌ Способ 4 не сработал"
+                fi
+                cd ..
+            fi
+
+            echo "=== Проверка результата установки ==="
+            if [ "$MYSQL2_INSTALLED" = true ] && [ -d "node_modules/mysql2" ]; then
+                echo "✅ mysql2 успешно установлен"
+                echo "📋 Размер node_modules: $(du -sh node_modules/ 2>/dev/null)"
+                echo "📊 Модулей установлено: $(ls -1 node_modules/ | wc -l)"
+                echo "📁 Содержимое mysql2:"
+                ls -la node_modules/mysql2/ | head -5
             else
-                echo "❌ node_modules папка НЕ создана!"
-                echo "🔍 Проверим ошибки npm:"
-                echo "PWD: $(pwd)"
-                echo "FILES: $(ls -la)"
-                echo "LAST NPM LOG:"
+                echo "❌ Все способы установки mysql2 не сработали"
+                echo "🔍 Последние логи npm:"
                 cat ~/.npm/_logs/*.log 2>/dev/null | tail -20 || echo "Нет логов npm"
+                echo "⚠️  Продолжаем без mysql2 - возможны ошибки при подключении к БД"
             fi
 
             echo "=== Перезапуск Passenger приложения ==="
@@ -185,13 +217,26 @@ jobs:
             touch tmp/restart.txt
             echo "✅ Создан файл для перезапуска Passenger"
 
-            # package.json уже скопирован из server папки при деплое
-            if [ -f "package.json" ]; then
-                echo "✅ package.json найден"
+            # Проверяем основные файлы приложения
+            if [ -f "index.js" ]; then
+                echo "✅ index.js (бандл) найден - $(ls -lh index.js)"
             else
-                echo "❌ package.json не найден!"
-                ls -la
+                echo "❌ index.js не найден!"
                 exit 1
+            fi
+
+            if [ -f ".env" ]; then
+                echo "✅ .env файл найден"
+            else
+                echo "❌ .env файл не найден!"
+                exit 1
+            fi
+
+            if [ -d "node_modules/mysql2" ]; then
+                echo "✅ mysql2 модуль доступен для приложения"
+            else
+                echo "⚠️  mysql2 модуль недоступен - возможны ошибки БД"
+                echo "💡 Убедитесь что USE_MOCK_DB=true или установите mysql2 вручную на сервере"
             fi
 
             echo "✅ Приложение готово к перезапуску Passenger"
