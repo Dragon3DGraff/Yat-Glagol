@@ -61,7 +61,7 @@ jobs:
           mkdir -p deploy-server
           # Копируем собранный бандл (единый файл)
           cp server/dist/index.js deploy-server/
-          cp node_modules deploy-server/
+          cp server/node_modules/ deploy-server/
           # Копируем .env файл  
           cp server/.env deploy-server/
           # Копируем package.json для mysql2
