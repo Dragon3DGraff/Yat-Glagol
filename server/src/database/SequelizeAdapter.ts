@@ -1,0 +1,278 @@
+import {
+  IDatabaseManager,
+  IUser,
+  IChat,
+  IMessage,
+  IFriendship,
+} from "./IDatabaseManager"
+import { SequelizeDatabaseManager } from "./SequelizeDatabaseManager"
+
+/**
+ * Адаптер для SequelizeDatabaseManager, реализующий интерфейс IDatabaseManager
+ * для совместимости с существующим кодом
+ */
+export class SequelizeAdapter implements IDatabaseManager {
+  private sequelizeManager: SequelizeDatabaseManager
+
+  constructor() {
+    this.sequelizeManager = new SequelizeDatabaseManager()
+  }
+
+  async initialize(): Promise<void> {
+    return this.sequelizeManager.initialize()
+  }
+
+  async close(): Promise<void> {
+    return this.sequelizeManager.close()
+  }
+
+  // Пользователи
+  async getUserByEmail(email: string): Promise<IUser | null> {
+    // Для совместимости - ищем по email через username (в нашем случае)
+    const user = await this.sequelizeManager.getUserByUsername(email)
+    if (!user) return null
+
+    return {
+      id: user.id.toString(),
+      email: user.email,
+      password_hash: user.password,
+      username: user.username,
+      status: "offline",
+      created_at: new Date(),
+      last_active: new Date(),
+    }
+  }
+
+  async getUserById(id: string): Promise<IUser | null> {
+    const user = await this.sequelizeManager.getUserById(parseInt(id))
+    if (!user) return null
+
+    return {
+      id: user.id.toString(),
+      email: user.email || "",
+      password_hash: "",
+      username: user.username,
+      avatar_url: user.avatar,
+      status: user.status,
+      created_at: new Date(),
+      last_active: new Date(),
+    }
+  }
+
+  async createUser(
+    username: string,
+    email: string,
+    password_hash: string
+  ): Promise<string> {
+    const user = await this.sequelizeManager.createUser(
+      username,
+      email,
+      password_hash
+    )
+    return user.id.toString()
+  }
+
+  async updateUserStatus(userId: string, status: string): Promise<void> {
+    await this.sequelizeManager.updateUserStatus(
+      parseInt(userId),
+      status as "online" | "offline" | "away"
+    )
+  }
+
+  // Чаты
+  async getUserChats(userId: string): Promise<any[]> {
+    const rooms = await this.sequelizeManager.getChatRoomsByUserId(
+      parseInt(userId)
+    )
+    return rooms.map((room) => ({
+      id: room.id.toString(),
+      name: room.name,
+      is_private: room.isPrivate,
+      role: room.role,
+      last_activity: room.lastActivity,
+    }))
+  }
+
+  async createChat(
+    name: string,
+    description: string,
+    isPrivate: boolean,
+    createdBy: string
+  ): Promise<IChat> {
+    const room = await this.sequelizeManager.createChatRoom(
+      name,
+      parseInt(createdBy),
+      isPrivate,
+      description
+    )
+
+    return {
+      id: room.id.toString(),
+      name: room.name,
+      description,
+      is_private: room.isPrivate,
+      created_by: createdBy,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }
+  }
+
+  async addUserToChat(chatId: string, userId: string): Promise<boolean> {
+    try {
+      await this.sequelizeManager.addUserToRoom(
+        parseInt(userId),
+        parseInt(chatId)
+      )
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async isUserInChat(chatId: string, userId: string): Promise<boolean> {
+    try {
+      const participants = await this.sequelizeManager.getChatRoomParticipants(
+        parseInt(chatId)
+      )
+      return participants.some((p) => p.id === parseInt(userId))
+    } catch {
+      return false
+    }
+  }
+
+  // Сообщения
+  async getChatMessages(
+    chatId: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<any[]> {
+    const page = Math.floor(offset / limit) + 1
+    const messages = await this.sequelizeManager.getChatRoomMessages(
+      parseInt(chatId),
+      page,
+      limit
+    )
+
+    return messages.map((msg) => ({
+      id: msg.id.toString(),
+      chat_id: chatId,
+      user_id: msg.author.id.toString(),
+      content: msg.content,
+      message_type: msg.type,
+      created_at: msg.createdAt,
+      username: msg.author.username,
+      avatar: msg.author.avatar,
+    }))
+  }
+
+  async createMessage(
+    chatId: string,
+    userId: string,
+    content: string,
+    messageType: string = "text"
+  ): Promise<IMessage> {
+    const message = await this.sequelizeManager.saveMessage(
+      parseInt(userId),
+      parseInt(chatId),
+      content,
+      messageType as "text" | "image" | "file"
+    )
+
+    return {
+      id: message.id.toString(),
+      chat_id: chatId,
+      user_id: userId,
+      encrypted_content: content,
+      message_type: message.type as any,
+      created_at: message.createdAt,
+    }
+  }
+
+  // Поиск пользователей (простая заглушка)
+  async searchUsers(query: string): Promise<any[]> {
+    // TODO: Реализовать поиск в Sequelize
+    return []
+  }
+
+  // Друзья
+  async getFriends(userId: number): Promise<any[]> {
+    const friends = await this.sequelizeManager.getFriends(userId)
+    return friends.map((friend) => ({
+      id: friend.id,
+      username: friend.username,
+      status: friend.status,
+      avatar: friend.avatar,
+    }))
+  }
+
+  async getFriendRequests(userId: number): Promise<any[]> {
+    const requests = await this.sequelizeManager.getFriendRequests(userId)
+    return requests.map((req) => ({
+      id: req.id,
+      from_user_id: req.fromUser.id,
+      from_username: req.fromUser.username,
+      from_avatar: req.fromUser.avatar,
+      created_at: req.createdAt,
+    }))
+  }
+
+  async getSentFriendRequests(userId: number): Promise<any[]> {
+    // TODO: Реализовать в SequelizeDatabaseManager
+    return []
+  }
+
+  async sendFriendRequest(
+    fromUserId: number,
+    toUserId: number,
+    message?: string
+  ): Promise<number> {
+    // В SequelizeDatabaseManager используется username, здесь нужна адаптация
+    // TODO: Найти username по ID и отправить запрос
+    throw new Error("Not implemented: use sendFriendRequest with username")
+  }
+
+  async acceptFriendRequest(
+    requestId: number,
+    userId: number
+  ): Promise<{ friendship: any; roomId?: number }> {
+    await this.sequelizeManager.acceptFriendRequest(userId, requestId)
+    return { friendship: {}, roomId: undefined }
+  }
+
+  // Остальные методы - заглушки для совместимости
+  async declineFriendRequest(
+    requestId: number,
+    userId: number
+  ): Promise<boolean> {
+    // TODO: Реализовать
+    return false
+  }
+
+  async removeFriend(userId: number, friendId: number): Promise<boolean> {
+    // TODO: Реализовать
+    return false
+  }
+
+  async blockUser(userId: number, blockedUserId: number): Promise<boolean> {
+    // TODO: Реализовать
+    return false
+  }
+
+  async unblockUser(userId: number, unblockedUserId: number): Promise<boolean> {
+    // TODO: Реализовать
+    return false
+  }
+
+  async getFriendshipStatus(
+    userId: number,
+    otherUserId: number
+  ): Promise<string> {
+    // TODO: Реализовать
+    return "none"
+  }
+
+  async createFriendRoom(userId: number, friendId: number): Promise<number> {
+    // TODO: Реализовать
+    return 0
+  }
+}

@@ -141,72 +141,78 @@ jobs:
             echo "📋 package.json содержимое:"
             cat package.json
 
-            echo "=== Альтернативные способы установки mysql2 ==="
+            echo "=== Альтернативные способы установки зависимостей БД ==="
 
-            # Пробуем разные способы установки mysql2
-            MYSQL2_INSTALLED=false
+            # Пробуем разные способы установки sequelize и mysql2
+            DB_MODULES_INSTALLED=false
 
-            # Способ 1: Обычный npm install
-            echo "🔄 Способ 1: npm install"
-            if npm install mysql2 --production --no-package-lock --no-audit --legacy-peer-deps 2>/dev/null; then
+            # Способ 1: Обычный npm install с package.json
+            echo "🔄 Способ 1: npm install (package.json)"
+            if npm install --production --no-audit --legacy-peer-deps 2>/dev/null; then
                 echo "✅ Способ 1 успешен"
-                MYSQL2_INSTALLED=true
+                DB_MODULES_INSTALLED=true
             else
                 echo "❌ Способ 1 не сработал"
             fi
 
             # Способ 2: yarn (если есть)
-            if [ "$MYSQL2_INSTALLED" = false ] && command -v yarn >/dev/null 2>&1; then
+            if [ "$DB_MODULES_INSTALLED" = false ] && command -v yarn >/dev/null 2>&1; then
                 echo "🔄 Способ 2: yarn"
-                if yarn add mysql2 --production 2>/dev/null; then
+                if yarn install --production 2>/dev/null; then
                     echo "✅ Способ 2 (yarn) успешен"
-                    MYSQL2_INSTALLED=true
+                    DB_MODULES_INSTALLED=true
                 else
                     echo "❌ Способ 2 не сработал"
                 fi
             fi
 
             # Способ 3: Принудительная очистка кэша npm
-            if [ "$MYSQL2_INSTALLED" = false ]; then
+            if [ "$DB_MODULES_INSTALLED" = false ]; then
                 echo "🔄 Способ 3: Очистка кэша npm"
-                rm -rf ~/.npm
+                rm -rf ~/.npm node_modules
                 npm cache clean --force 2>/dev/null || true
-                if npm install mysql2 --production --no-package-lock --force 2>/dev/null; then
+                if npm install --production --no-package-lock --force 2>/dev/null; then
                     echo "✅ Способ 3 успешен"
-                    MYSQL2_INSTALLED=true
+                    DB_MODULES_INSTALLED=true
                 else
                     echo "❌ Способ 3 не сработал"
                 fi
             fi
 
-            # Способ 4: Прямое скачивание и распаковка
-            if [ "$MYSQL2_INSTALLED" = false ]; then
-                echo "🔄 Способ 4: Прямое скачивание"
+            # Способ 4: Установка модулей по отдельности
+            if [ "$DB_MODULES_INSTALLED" = false ]; then
+                echo "🔄 Способ 4: Установка модулей по отдельности"
                 mkdir -p node_modules
-                cd node_modules
-                if wget -q https://registry.npmjs.org/mysql2/-/mysql2-3.6.5.tgz && tar -xzf mysql2-3.6.5.tgz && mv package mysql2; then
-                    echo "✅ Способ 4 успешен - mysql2 скачан вручную"
-                    cd mysql2 && npm install --production 2>/dev/null || echo "Зависимости mysql2 будут установлены при запуске"
-                    cd ..
-                    MYSQL2_INSTALLED=true
+                if npm install sequelize mysql2 --production --no-package-lock 2>/dev/null; then
+                    echo "✅ Способ 4 успешен - модули установлены отдельно"
+                    DB_MODULES_INSTALLED=true
                 else
                     echo "❌ Способ 4 не сработал"
                 fi
-                cd ..
             fi
 
             echo "=== Проверка результата установки ==="
-            if [ "$MYSQL2_INSTALLED" = true ] && [ -d "node_modules/mysql2" ]; then
-                echo "✅ mysql2 успешно установлен"
+            if [ "$DB_MODULES_INSTALLED" = true ]; then
+                echo "✅ Зависимости БД успешно установлены"
                 echo "📋 Размер node_modules: $(du -sh node_modules/ 2>/dev/null)"
                 echo "📊 Модулей установлено: $(ls -1 node_modules/ | wc -l)"
-                echo "📁 Содержимое mysql2:"
-                ls -la node_modules/mysql2/ | head -5
+                
+                if [ -d "node_modules/sequelize" ]; then
+                    echo "✅ sequelize найден"
+                else
+                    echo "❌ sequelize НЕ найден"
+                fi
+                
+                if [ -d "node_modules/mysql2" ]; then
+                    echo "✅ mysql2 найден"
+                else
+                    echo "❌ mysql2 НЕ найден"
+                fi
             else
-                echo "❌ Все способы установки mysql2 не сработали"
+                echo "❌ Все способы установки зависимостей БД не сработали"
                 echo "🔍 Последние логи npm:"
                 cat ~/.npm/_logs/*.log 2>/dev/null | tail -20 || echo "Нет логов npm"
-                echo "⚠️  Продолжаем без mysql2 - возможны ошибки при подключении к БД"
+                echo "⚠️  Продолжаем без модулей БД - возможны ошибки при подключении к БД"
             fi
 
             echo "=== Перезапуск Passenger приложения ==="
@@ -232,11 +238,19 @@ jobs:
                 exit 1
             fi
 
-            if [ -d "node_modules/mysql2" ]; then
-                echo "✅ mysql2 модуль доступен для приложения"
+            if [ -d "node_modules/sequelize" ] && [ -d "node_modules/mysql2" ]; then
+                echo "✅ Sequelize ORM и mysql2 доступны для приложения"
             else
-                echo "⚠️  mysql2 модуль недоступен - возможны ошибки БД"
-                echo "💡 Убедитесь что USE_MOCK_DB=true или установите mysql2 вручную на сервере"
+                echo "⚠️  Модули БД недоступны - возможны ошибки при подключении"
+                echo "💡 Убедитесь что USE_MOCK_DB=true или установите зависимости БД вручную"
+                
+                if [ ! -d "node_modules/sequelize" ]; then
+                    echo "❌ sequelize отсутствует"
+                fi
+                
+                if [ ! -d "node_modules/mysql2" ]; then
+                    echo "❌ mysql2 отсутствует"
+                fi
             fi
 
             echo "✅ Приложение готово к перезапуску Passenger"

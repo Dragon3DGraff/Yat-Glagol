@@ -21,7 +21,7 @@ import cors from "cors"
 import helmet from "helmet"
 import rateLimit from "express-rate-limit"
 import path from "path"
-import { DatabaseManager } from "./database/DatabaseManager"
+import { SequelizeAdapter } from "./database/SequelizeAdapter"
 import { MockDatabaseManager } from "./mock/MockDatabaseManager"
 import { IDatabaseManager } from "./database/IDatabaseManager"
 import { AuthMiddleware } from "./middleware/AuthMiddleware"
@@ -98,7 +98,7 @@ const USE_MOCK_DB =
   process.env.USE_MOCK_DB === "true" || process.env.NODE_ENV === "development"
 const dbManager = USE_MOCK_DB
   ? new MockDatabaseManager()
-  : new DatabaseManager()
+  : new SequelizeAdapter()
 
 console.log(
   `🗄️  Используется ${USE_MOCK_DB ? "моковая" : "реальная"} база данных`
@@ -145,7 +145,7 @@ io.on("connection", (socket: any) => {
       "online"
     )
   } else {
-    ;(dbManager as DatabaseManager).updateUserStatus(socket.userId, "online")
+    ;(dbManager as SequelizeAdapter).updateUserStatus(socket.userId, "online")
   }
 
   // Присоединяем пользователя к его комнатам
@@ -163,7 +163,10 @@ io.on("connection", (socket: any) => {
         "offline"
       )
     } else {
-      ;(dbManager as DatabaseManager).updateUserStatus(socket.userId, "offline")
+      ;(dbManager as SequelizeAdapter).updateUserStatus(
+        socket.userId,
+        "offline"
+      )
     }
     webrtcSignaling.handleDisconnection(socket)
   })
@@ -196,13 +199,13 @@ server.listen(PORT, () => {
     const mockInfo = (dbManager as MockDatabaseManager).getMockDataInfo()
     console.log("📊 Тестовые данные:", JSON.stringify(mockInfo, null, 2))
   } else {
-    ;(dbManager as any)
+    ;(dbManager as SequelizeAdapter)
       .initialize()
       .then(() => {
-        console.log("✅ База данных инициализирована")
+        console.log("✅ Sequelize база данных инициализирована")
       })
       .catch((error: any) => {
-        console.error("❌ Ошибка инициализации базы данных:", error)
+        console.error("❌ Ошибка инициализации Sequelize базы данных:", error)
         process.exit(1)
       })
   }
