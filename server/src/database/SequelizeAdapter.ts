@@ -276,4 +276,115 @@ export class SequelizeAdapter implements IDatabaseManager {
     // TODO: Реализовать
     return 0
   }
+
+  // Дополнительные методы для совместимости с routes
+  async getUserChatRooms(userId: number): Promise<any[]> {
+    const rooms = await this.sequelizeManager.getChatRoomsByUserId(userId)
+    return rooms.map((room) => ({
+      id: room.id,
+      name: room.name,
+      type: room.isPrivate ? "private" : "public",
+      created_at: room.lastActivity || new Date(),
+    }))
+  }
+
+  async getRoomParticipants(roomId: number): Promise<any[]> {
+    const participants = await this.sequelizeManager.getChatRoomParticipants(
+      roomId
+    )
+    return participants.map((p) => ({
+      id: (p as any).user.id,
+      username: (p as any).user.username,
+      avatar: (p as any).user.avatar,
+    }))
+  }
+
+  async getRoomMessages(roomId: number, limit?: number): Promise<any[]> {
+    const messages = await this.sequelizeManager.getChatRoomMessages(
+      roomId,
+      limit
+    )
+    return messages.map((msg) => ({
+      id: msg.id,
+      content: msg.content,
+      message_type: msg.type,
+      created_at: msg.createdAt,
+      author: {
+        id: (msg as any).author.id,
+        username: (msg as any).author.username,
+        avatar: (msg as any).author.avatar,
+      },
+    }))
+  }
+
+  async createChatRoom(
+    name: string,
+    type: string,
+    createdBy: number
+  ): Promise<any> {
+    const isPrivate = type === "private"
+    const room = await this.sequelizeManager.createChatRoom(
+      name,
+      createdBy,
+      isPrivate
+    )
+    return {
+      id: room.id,
+      name: room.name,
+      type: room.isPrivate ? "private" : "public",
+      created_at: new Date(),
+    }
+  }
+
+  async getChatRoom(roomId: number): Promise<any | null> {
+    // Простая реализация - можно расширить позже
+    try {
+      const participants = await this.sequelizeManager.getChatRoomParticipants(
+        roomId
+      )
+      if (participants.length === 0) return null
+
+      return {
+        id: roomId,
+        name: `Room ${roomId}`,
+        type: "public",
+        created_at: new Date(),
+      }
+    } catch {
+      return null
+    }
+  }
+
+  async addRoomParticipant(roomId: number, userId: number): Promise<void> {
+    await this.sequelizeManager.addUserToRoom(userId, roomId)
+  }
+
+  async searchMessages(query: string, roomId?: number): Promise<any[]> {
+    // Простая реализация - получаем все сообщения комнаты и фильтруем
+    if (!roomId) return []
+    const messages = await this.sequelizeManager.getChatRoomMessages(roomId)
+    return messages
+      .filter((msg) => msg.content.toLowerCase().includes(query.toLowerCase()))
+      .map((msg) => ({
+        id: msg.id,
+        content: msg.content,
+        message_type: msg.type,
+        created_at: msg.createdAt,
+        author: {
+          id: (msg as any).author.id,
+          username: (msg as any).author.username,
+          avatar: (msg as any).author.avatar,
+        },
+      }))
+  }
+
+  async updateMessage(messageId: number, newContent: string): Promise<void> {
+    // Пока что заглушка - можно реализовать позже через Sequelize
+    console.log(`Updating message ${messageId} with content: ${newContent}`)
+  }
+
+  async deleteMessage(messageId: number): Promise<void> {
+    // Пока что заглушка - можно реализовать позже через Sequelize
+    console.log(`Deleting message ${messageId}`)
+  }
 }
