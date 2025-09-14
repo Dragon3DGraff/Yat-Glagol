@@ -159,6 +159,12 @@ const RegisterPage: React.FC = () => {
               required
               autoComplete="username"
               autoFocus
+              InputProps={{
+                sx: {
+                  color: "black",
+                },
+              }}
+              sx={{color: "black"}}
             />
 
             <TextField
@@ -172,6 +178,12 @@ const RegisterPage: React.FC = () => {
               margin="normal"
               required
               autoComplete="email"
+              InputProps={{
+                sx: {
+                  color: "black",
+                },
+              }}
+              sx={{color: "black"}}
             />
 
             <TextField
@@ -188,6 +200,12 @@ const RegisterPage: React.FC = () => {
               margin="normal"
               required
               autoComplete="new-password"
+              InputProps={{
+                sx: {
+                  color: "black",
+                },
+              }}
+              sx={{color: "black"}}
             />
 
             <TextField
@@ -201,6 +219,12 @@ const RegisterPage: React.FC = () => {
               margin="normal"
               required
               autoComplete="new-password"
+              InputProps={{
+                sx: {
+                  color: "black",
+                },
+              }}
+              sx={{color: "black"}}
             />
 
             <Button

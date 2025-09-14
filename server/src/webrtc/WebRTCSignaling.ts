@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io"
-import { SequelizeAdapter } from "../database/SequelizeAdapter"
+import { IDatabaseManager } from "../database/IDatabaseManager"
 
 interface AuthenticatedSocket extends Socket {
   userId: number
@@ -39,11 +39,11 @@ interface ActiveCall {
 
 export class WebRTCSignaling {
   private io: Server
-  private db: SequelizeAdapter
+  private db: IDatabaseManager
   private activeCalls: Map<number, ActiveCall> = new Map() // roomId -> ActiveCall
   private userCalls: Map<number, number> = new Map() // userId -> roomId
 
-  constructor(io: Server, db: SequelizeAdapter) {
+  constructor(io: Server, db: IDatabaseManager) {
     this.io = io
     this.db = db
   }
@@ -69,7 +69,7 @@ export class WebRTCSignaling {
           // Проверяем, является ли пользователь участником комнаты
           const roomParticipants = await this.db.getRoomParticipants(roomId)
           const isParticipant = roomParticipants.some(
-            (p) => p.id === socket.userId
+            (p: any) => p.id === socket.userId
           )
 
           if (!isParticipant) {
@@ -149,7 +149,7 @@ export class WebRTCSignaling {
         // Проверяем доступ к комнате
         const roomParticipants = await this.db.getRoomParticipants(roomId)
         const isParticipant = roomParticipants.some(
-          (p) => p.id === socket.userId
+          (p: any) => p.id === socket.userId
         )
 
         if (!isParticipant) {

@@ -113,7 +113,7 @@ export class Models {
 
     this.Friend.belongsTo(this.User, {
       foreignKey: "friendId",
-      as: "friend",
+      as: "friendUser",
     })
   }
 

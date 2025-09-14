@@ -16,6 +16,7 @@ import {
   Chip,
   useTheme,
   ListItemSecondaryAction,
+  Stack,
 } from "@mui/material"
 import { Check, Close, Inbox, Send, Schedule } from "@mui/icons-material"
 import { useFriendsStore } from "@/store/friendsStore"
@@ -182,7 +183,7 @@ const FriendRequests: React.FC = () => {
 
         {isReceived && (
           <ListItemSecondaryAction>
-            <Box sx={{ display: "flex", gap: 1 }}>
+            <Stack sx={{  gap: 1 }}>
               <Button
                 variant="contained"
                 color="success"
@@ -216,7 +217,7 @@ const FriendRequests: React.FC = () => {
               >
                 Отклонить
               </Button>
-            </Box>
+            </Stack>
           </ListItemSecondaryAction>
         )}
       </ListItem>

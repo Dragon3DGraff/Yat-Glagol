@@ -11,6 +11,7 @@ import {
   Paper,
   Chip,
   useTheme,
+  Stack,
 } from "@mui/material"
 import { PersonAdd, Send, Clear, Info, Search } from "@mui/icons-material"
 import { useFriendsStore } from "@/store/friendsStore"
@@ -175,7 +176,7 @@ const AddFriend = ({ onSuccess }: AddFriendProps) => {
         )}
 
         {/* Кнопки */}
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
+        <Stack sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
           {(username || message || showMessageInput) && (
             <Button
               variant="outlined"
@@ -183,6 +184,7 @@ const AddFriend = ({ onSuccess }: AddFriendProps) => {
               onClick={handleClear}
               disabled={isLoading}
               startIcon={<Clear />}
+              size="small"
             >
               Очистить
             </Button>
@@ -194,10 +196,11 @@ const AddFriend = ({ onSuccess }: AddFriendProps) => {
             disabled={isLoading || !username.trim()}
             startIcon={isLoading ? <CircularProgress size={20} /> : <Send />}
             sx={{ minWidth: 140 }}
+            size="small"
           >
             {isLoading ? "Отправка..." : "Отправить запрос"}
           </Button>
-        </Box>
+        </Stack>
       </Paper>
 
       {/* Подсказки */}

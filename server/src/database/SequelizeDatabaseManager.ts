@@ -40,7 +40,8 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       console.log("✅ Sequelize подключился к базе данных")
 
       // Sync models (create tables if they don't exist)
-      await this.models.sync({ alter: true })
+      // Используем force: false для безопасности - не пересоздаем таблицы
+      await this.models.sync({ force: false })
       console.log("✅ Модели Sequelize синхронизированы")
     } catch (error) {
       console.error("❌ Ошибка инициализации Sequelize:", error)
@@ -362,26 +363,25 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
   // Friend methods
   async sendFriendRequest(
     userId: number,
-    friendUsername: string
-  ): Promise<void> {
-    const friend = await this.models.User.findOne({
-      where: { username: friendUsername },
-    })
-
-    if (!friend) {
-      throw new Error("Пользователь не найден")
+    friendId: number,
+    message?: string
+  ): Promise<number> {
+    if (userId === friendId) {
+      throw new Error("Нельзя добавить себя в друзья")
     }
 
-    if (friend.id === userId) {
-      throw new Error("Нельзя добавить себя в друзья")
+    // Проверяем, существует ли пользователь
+    const friend = await this.models.User.findByPk(friendId)
+    if (!friend) {
+      throw new Error("Пользователь не найден")
     }
 
     // Check if request already exists
     const existingRequest = await this.models.Friend.findOne({
       where: {
         [Op.or]: [
-          { userId, friendId: friend.id },
-          { userId: friend.id, friendId: userId },
+          { userId, friendId: friendId },
+          { userId: friendId, friendId: userId },
         ],
       },
     })
@@ -390,20 +390,32 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       throw new Error("Запрос дружбы уже существует")
     }
 
-    await this.models.Friend.create({
+    const request = await this.models.Friend.create({
       userId,
-      friendId: friend.id,
+      friendId: friendId,
       status: "pending",
     })
+
+    return request.id
   }
 
-  async acceptFriendRequest(userId: number, requestId: number): Promise<void> {
+  async acceptFriendRequest(
+    requestId: number,
+    userId: number
+  ): Promise<{ friendship: any; roomId: number }> {
     const friendRequest = await this.models.Friend.findOne({
       where: {
         id: requestId,
         friendId: userId,
         status: "pending",
       },
+      include: [
+        {
+          model: this.models.User,
+          as: "user",
+          attributes: ["id", "username", "avatar"],
+        },
+      ],
     })
 
     if (!friendRequest) {
@@ -411,6 +423,20 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
     }
 
     await friendRequest.update({ status: "accepted" })
+
+    // Создаем комнату для друзей
+    const roomId = await this.createFriendRoom(userId, friendRequest.userId)
+
+    return {
+      friendship: {
+        id: friendRequest.id,
+        user_id: friendRequest.userId,
+        friend_id: friendRequest.friendId,
+        status: "accepted",
+        created_at: friendRequest.createdAt,
+      },
+      roomId: roomId,
+    }
   }
 
   async getFriends(
@@ -418,37 +444,69 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
   ): Promise<
     Array<{ id: number; username: string; status: string; avatar?: string }>
   > {
-    const friendships = await this.models.Friend.findAll({
-      where: {
-        [Op.or]: [
-          { userId, status: "accepted" },
-          { friendId: userId, status: "accepted" },
-        ],
-      },
-      include: [
-        {
-          model: this.models.User,
-          as: "user",
-        },
-        {
-          model: this.models.User,
-          as: "friend",
-        },
-      ],
-    })
+    try {
+      console.log(`👥 [SEQUELIZE] getFriends для пользователя ${userId}`)
 
-    return friendships.map((friendship) => {
-      const friendUser =
-        friendship.userId === userId
-          ? (friendship as any).friend
-          : (friendship as any).user
-      return {
-        id: friendUser.id,
-        username: friendUser.username,
-        status: friendUser.status,
-        avatar: friendUser.avatar,
+      const friendships = await this.models.Friend.findAll({
+        where: {
+          [Op.or]: [
+            { userId, status: "accepted" },
+            { friendId: userId, status: "accepted" },
+          ],
+        },
+        include: [
+          {
+            model: this.models.User,
+            as: "user",
+          },
+          {
+            model: this.models.User,
+            as: "friendUser",
+          },
+        ],
+      })
+
+      console.log(
+        `👥 [SEQUELIZE] Найдено ${friendships.length} дружеских связей`
+      )
+
+      const result: Array<{
+        id: number
+        username: string
+        status: string
+        avatar?: string
+      }> = []
+
+      for (const friendship of friendships) {
+        const friendUser =
+          friendship.userId === userId
+            ? (friendship as any).friendUser
+            : (friendship as any).user
+
+        if (!friendUser) {
+          console.error(
+            `❌ [SEQUELIZE] Не найден пользователь для дружбы ${friendship.id}`
+          )
+          continue
+        }
+
+        result.push({
+          id: friendUser.id,
+          username: friendUser.username,
+          status: friendUser.status,
+          avatar: friendUser.avatar,
+        })
       }
-    })
+
+      console.log(`👥 [SEQUELIZE] Возвращаем ${result.length} друзей`)
+      return result
+    } catch (error) {
+      console.error(
+        `❌ [SEQUELIZE] Ошибка в getFriends для пользователя ${userId}:`,
+        error
+      )
+      throw error
+    }
   }
 
   async getFriendRequests(userId: number): Promise<
@@ -484,5 +542,333 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
         createdAt: request.createdAt,
       }
     })
+  }
+
+  // Поиск пользователей
+  async searchUsers(query: string): Promise<
+    Array<{
+      id: number
+      username: string
+      email: string
+      avatar_url?: string
+      status: string
+      created_at: Date
+    }>
+  > {
+    if (!query.trim()) {
+      return []
+    }
+
+    const searchQuery = `%${query.toLowerCase().trim()}%`
+
+    const users = await this.models.User.findAll({
+      where: {
+        [Op.or]: [
+          { username: { [Op.like]: searchQuery } },
+          { email: { [Op.like]: searchQuery } },
+        ],
+      },
+      attributes: ["id", "username", "email", "avatar", "status", "createdAt"],
+      order: [
+        // Точное совпадение username идет первым
+        this.sequelize.literal(
+          `CASE WHEN LOWER(username) = '${query.toLowerCase()}' THEN 0 ELSE 1 END`
+        ),
+        ["username", "ASC"],
+      ],
+      limit: 20,
+    })
+
+    return users.map((user) => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      avatar_url: user.avatar,
+      status: user.status,
+      created_at: user.createdAt,
+    }))
+  }
+
+  // Получить отправленные запросы на дружбу
+  async getSentFriendRequests(userId: number): Promise<
+    Array<{
+      id: number
+      toUser: { id: number; username: string; avatar?: string }
+      createdAt: Date
+    }>
+  > {
+    console.log(
+      `🔍 [DB] Поиск отправленных запросов для пользователя ${userId}`
+    )
+
+    try {
+      const requests = await this.models.Friend.findAll({
+        where: {
+          userId: userId,
+          status: "pending",
+        },
+        include: [
+          {
+            model: this.models.User,
+            as: "friendUser",
+            attributes: ["id", "username", "avatar"],
+          },
+        ],
+      })
+
+      console.log(
+        `🔍 [DB] Найдено ${requests.length} отправленных запросов:`,
+        requests.map((r) => ({ id: r.id, friendId: (r as any).friendId }))
+      )
+
+      return requests.map((request) => {
+        const user = (request as any).friendUser
+        return {
+          id: request.id,
+          toUser: {
+            id: user.id,
+            username: user.username,
+            avatar: user.avatar,
+          },
+          createdAt: request.createdAt,
+        }
+      })
+    } catch (error) {
+      console.error(
+        `❌ [DB] Ошибка получения отправленных запросов для пользователя ${userId}:`,
+        error
+      )
+      throw error
+    }
+  }
+
+  // Отклонить запрос на дружбу
+  async declineFriendRequest(
+    requestId: number,
+    userId: number
+  ): Promise<boolean> {
+    try {
+      const request = await this.models.Friend.findOne({
+        where: {
+          id: requestId,
+          friendId: userId,
+          status: "pending",
+        },
+      })
+
+      if (!request) {
+        return false
+      }
+
+      await request.destroy()
+      return true
+    } catch (error) {
+      console.error("Ошибка отклонения запроса на дружбу:", error)
+      return false
+    }
+  }
+
+  // Удалить из друзей
+  async removeFriend(userId: number, friendId: number): Promise<boolean> {
+    try {
+      const friendship = await this.models.Friend.findOne({
+        where: {
+          [Op.or]: [
+            { userId: userId, friendId: friendId, status: "accepted" },
+            { userId: friendId, friendId: userId, status: "accepted" },
+          ],
+        },
+      })
+
+      if (!friendship) {
+        return false
+      }
+
+      await friendship.destroy()
+      return true
+    } catch (error) {
+      console.error("Ошибка удаления друга:", error)
+      return false
+    }
+  }
+
+  // Заблокировать пользователя
+  async blockUser(blockerId: number, blockedUserId: number): Promise<boolean> {
+    try {
+      // Сначала удаляем дружбу если она есть
+      await this.removeFriend(blockerId, blockedUserId)
+
+      // Создаем запись о блокировке
+      await this.models.Friend.create({
+        userId: blockerId,
+        friendId: blockedUserId,
+        status: "blocked",
+      })
+
+      return true
+    } catch (error) {
+      console.error("Ошибка блокировки пользователя:", error)
+      return false
+    }
+  }
+
+  // Разблокировать пользователя
+  async unblockUser(
+    unblockerId: number,
+    unblockedUserId: number
+  ): Promise<boolean> {
+    try {
+      const blockRecord = await this.models.Friend.findOne({
+        where: {
+          userId: unblockerId,
+          friendId: unblockedUserId,
+          status: "blocked",
+        },
+      })
+
+      if (!blockRecord) {
+        return false
+      }
+
+      await blockRecord.destroy()
+      return true
+    } catch (error) {
+      console.error("Ошибка разблокировки пользователя:", error)
+      return false
+    }
+  }
+
+  // Получить статус отношений между пользователями
+  async getFriendshipStatus(
+    userId: number,
+    otherUserId: number
+  ): Promise<string> {
+    try {
+      const relationship = await this.models.Friend.findOne({
+        where: {
+          [Op.or]: [
+            { userId: userId, friendId: otherUserId },
+            { userId: otherUserId, friendId: userId },
+          ],
+        },
+      })
+
+      if (!relationship) {
+        return "none"
+      }
+
+      return relationship.status
+    } catch (error) {
+      console.error("Ошибка получения статуса отношений:", error)
+      return "none"
+    }
+  }
+
+  // Создать комнату для друзей
+  async createFriendRoom(userId: number, friendId: number): Promise<number> {
+    try {
+      const room = await this.models.ChatRoom.create({
+        name: `Private Chat`,
+        isPrivate: true,
+        createdBy: userId,
+      })
+
+      // Добавляем обоих пользователей в комнату
+      await this.models.RoomParticipant.bulkCreate([
+        { chatRoomId: room.id, userId: userId, role: "member" },
+        { chatRoomId: room.id, userId: friendId, role: "member" },
+      ])
+
+      return room.id
+    } catch (error) {
+      console.error("Ошибка создания комнаты друзей:", error)
+      throw error
+    }
+  }
+
+  // Обновить сообщение
+  async updateMessage(
+    messageId: number,
+    userId: number,
+    newContent: string
+  ): Promise<boolean> {
+    try {
+      const message = await this.models.Message.findOne({
+        where: {
+          id: messageId,
+          userId: userId,
+        },
+      })
+
+      if (!message) {
+        return false
+      }
+
+      await message.update({
+        content: this.encrypt(newContent),
+        updatedAt: new Date(),
+      })
+
+      return true
+    } catch (error) {
+      console.error("Ошибка обновления сообщения:", error)
+      return false
+    }
+  }
+
+  // Удалить сообщение
+  async deleteMessage(messageId: number, userId: number): Promise<boolean> {
+    try {
+      const message = await this.models.Message.findOne({
+        where: {
+          id: messageId,
+          userId: userId,
+        },
+      })
+
+      if (!message) {
+        return false
+      }
+
+      await message.destroy()
+      return true
+    } catch (error) {
+      console.error("Ошибка удаления сообщения:", error)
+      return false
+    }
+  }
+
+  // Получить сообщение по ID
+  async getMessageById(messageId: number): Promise<any | null> {
+    try {
+      const message = await this.models.Message.findByPk(messageId, {
+        include: [
+          {
+            model: this.models.User,
+            as: "user",
+            attributes: ["id", "username", "avatar"],
+          },
+        ],
+      })
+
+      if (!message) {
+        return null
+      }
+
+      return {
+        id: message.id,
+        content: this.decrypt(message.content),
+        type: message.type,
+        createdAt: message.createdAt,
+        author: {
+          id: (message as any).user.id,
+          username: (message as any).user.username,
+          avatar: (message as any).user.avatar,
+        },
+      }
+    } catch (error) {
+      console.error("Ошибка получения сообщения:", error)
+      return null
+    }
   }
 }

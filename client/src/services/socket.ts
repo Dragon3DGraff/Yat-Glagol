@@ -49,6 +49,9 @@ class SocketService {
         transports: ["websocket", "polling"],
         timeout: 20000,
         forceNew: true,
+        // Дополнительные настройки для стабильности
+        upgrade: true,
+        rememberUpgrade: true,
       })
 
       this.socket.on("connect", () => {
@@ -64,12 +67,21 @@ class SocketService {
 
         if (
           error.message.includes("токен") ||
-          error.message.includes("token")
+          error.message.includes("token") ||
+          error.message.includes("unauthorized")
         ) {
           // Проблема с аутентификацией
           apiService.clearToken()
           window.location.href = "/login"
           reject(new Error("Ошибка аутентификации"))
+        } else if (
+          error.message.includes("websocket error") ||
+          (error as any).type === "TransportError"
+        ) {
+          // Проблема с WebSocket соединением
+          console.warn("WebSocket соединение недоступно, пробуем polling...")
+          this.handleReconnect()
+          reject(new Error("Ошибка WebSocket соединения"))
         } else {
           this.handleReconnect()
           reject(error)
