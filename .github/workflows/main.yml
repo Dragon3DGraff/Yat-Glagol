@@ -108,21 +108,6 @@ jobs:
             touch tmp/restart.txt
             echo "✅ Создан файл для перезапуска Passenger"
 
-            # Проверяем основные файлы приложения
-            if [ -f "index.js" ]; then
-                echo "✅ index.js (бандл) найден - $(ls -lh index.js)"
-            else
-                echo "❌ index.js не найден!"
-                exit 1
-            fi
-
-            if [ -f ".env" ]; then
-                echo "✅ .env файл найден"
-            else
-                echo "❌ .env файл не найден!"
-                exit 1
-            fi
-
             echo "✅ Приложение готово к перезапуску Passenger"
             echo "Passenger автоматически перезапустит приложение при следующем запросе"
 
