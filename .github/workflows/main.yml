@@ -85,7 +85,7 @@ jobs:
           host: ${{ secrets.DEPLOY_SERVER_HOST }}
           username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
           key: ${{ secrets.DEPLOY_SERVER_KEY }}
-          source: deploy-server/node_modules
+          source: server/node_modules
           target: ${{ env.DEPLOY_SERVER_PATH }}
           rm: false
           strip_components: 1
