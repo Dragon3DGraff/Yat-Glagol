@@ -15,7 +15,7 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
     // Initialize Sequelize
     this.sequelize = new Sequelize({
       dialect: "mysql",
-      host: "localhost",
+      host: process.env.DB_HOST || "localhost",
       username: process.env.DB_USER || "root",
       password: process.env.DB_PASSWORD || "",
       database: process.env.DB_NAME || "yat_glagol_chat",
