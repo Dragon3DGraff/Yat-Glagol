@@ -83,9 +83,77 @@ jobs:
           username: ${{ secrets.DEPLOY_SERVER_USERNAME }}
           key: ${{ secrets.DEPLOY_SERVER_KEY }}
           script: |
+            echo "=== Настройка окружения ===" 
+
+            # Загружаем все возможные профили
+            source ~/.bashrc 2>/dev/null || true
+            source ~/.profile 2>/dev/null || true
+            source ~/.bash_profile 2>/dev/null || true
+
+            # Добавляем стандартные пути Node.js
+            export PATH="/usr/local/bin:/opt/nodejs/bin:/usr/bin:/bin:$PATH"
+            export PATH="$HOME/.nvm/versions/node/*/bin:$PATH"
+            export PATH="/usr/local/nodejs/bin:$PATH"
+
+            echo "Текущий PATH: $PATH"
+
+            # Ищем Node.js в различных местах
+            NODE_PATH=""
+            for path in "/usr/local/bin/node" "/usr/bin/node" "/opt/nodejs/bin/node" "$HOME/.nvm/versions/node/*/bin/node" "/usr/local/nodejs/bin/node"; do
+                if [ -f "$path" ] 2>/dev/null || [ -f $(echo $path) ] 2>/dev/null; then
+                    NODE_PATH=$(dirname "$path")
+                    export PATH="$NODE_PATH:$PATH"
+                    break
+                fi
+            done
+
+            echo "=== Проверка Node.js и npm ==="
+            if command -v node >/dev/null 2>&1; then
+                echo "✅ Node.js найден: $(node --version)"
+            else
+                echo "❌ Node.js не найден!"
+                echo "Доступные команды:"
+                which node 2>/dev/null || echo "node: не найден"
+                ls -la /usr/local/bin/node* 2>/dev/null || echo "В /usr/local/bin нет node"
+                ls -la /usr/bin/node* 2>/dev/null || echo "В /usr/bin нет node"
+                exit 1
+            fi
+
+            if command -v npm >/dev/null 2>&1; then
+                echo "✅ npm найден: $(npm --version)"
+            else
+                echo "❌ npm не найден!"
+                exit 1
+            fi
+
+            echo "=== Установка зависимостей ==="
             cd ${{ env.DEPLOY_SERVER_PATH }}
-            npm ci --production
-            pm2 restart all || pm2 start index.js --name "yat-glagol-server"
+            pwd
+            ls -la
+
+            # Устанавливаем только production зависимости
+            npm ci --production --silent
+
+            echo "=== Управление процессом ==="
+            # Простой перезапуск без PM2
+            echo "Останавливаем старые процессы..."
+            pkill -f "node.*index.js" 2>/dev/null || true
+            sleep 2
+
+            echo "Запускаем новый процесс..."
+            nohup node index.js > server.log 2>&1 &
+            NEW_PID=$!
+            echo "Сервер запущен с PID: $NEW_PID"
+
+            # Проверяем, что процесс запустился
+            sleep 3
+            if kill -0 $NEW_PID 2>/dev/null; then
+                echo "✅ Сервер успешно запущен"
+            else
+                echo "❌ Ошибка запуска сервера, проверьте логи:"
+                tail -20 server.log 2>/dev/null || echo "Лог файл не найден"
+                exit 1
+            fi
 
       - name: Deploy client
         uses: appleboy/scp-action@master
