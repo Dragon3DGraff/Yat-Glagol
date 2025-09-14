@@ -3,6 +3,7 @@ import { ISequelizeDatabaseManager } from "./ISequelizeDatabaseManager"
 import { Models, User, ChatRoom, Message, Friend } from "../models"
 import CryptoJS from "crypto-js"
 import bcrypt from "bcryptjs"
+import { logDatabase } from "../utils/logger"
 
 export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
   private sequelize: Sequelize
@@ -11,12 +12,16 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
 
   constructor() {
     this.encryptionKey = process.env.ENCRYPTION_KEY || "default-secret-key"
+    logDatabase(process.env.DB_HOST || "")
+    logDatabase(process.env.DB_USER || "")
+    logDatabase(process.env.DB_PASSWORD || "")
+    logDatabase(process.env.DB_NAME || "")
 
     // Initialize Sequelize
     this.sequelize = new Sequelize({
       dialect: "mysql",
       host: process.env.DB_HOST || "localhost",
-    //   port: parseInt(process.env.DB_PORT || "3306"),
+      //   port: parseInt(process.env.DB_PORT || "3306"),
       username: process.env.DB_USER || "root",
       password: process.env.DB_PASSWORD || "",
       database: process.env.DB_NAME || "yat_glagol_chat",
