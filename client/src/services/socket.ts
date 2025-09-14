@@ -46,7 +46,7 @@ class SocketService {
         auth: {
           token: token,
         },
-        transports: ["websocket", "polling"],
+        transports: ["polling","websocket", ],
         timeout: 20000,
         forceNew: true,
         // Дополнительные настройки для стабильности
