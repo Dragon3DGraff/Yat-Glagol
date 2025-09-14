@@ -114,6 +114,9 @@ app.use((req, res, next) => {
 })
 
 // Маршруты
+if (process.env.NODE_ENV === "production") {
+  app.use("/", express.static(path.join(__dirname, "client", "dist")))
+}
 app.use("/api/auth", authRoutes)
 app.use("/api/chat", AuthMiddleware.verifyToken, chatRoutes)
 app.use("/api/user", AuthMiddleware.verifyToken, userRoutes)
