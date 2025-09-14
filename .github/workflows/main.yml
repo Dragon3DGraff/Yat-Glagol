@@ -54,7 +54,7 @@ jobs:
       - name: Build Application
         run: npm run build
 
-      # Подготавливаем файлы для деплоя (только собранный бандл)
+      # Подготавливаем файлы для деплоя (бандл + mysql2)
       - name: Prepare server files
         run: |
           # Создаем временную папку для деплоя
@@ -63,8 +63,10 @@ jobs:
           cp server/dist/index.js deploy-server/
           # Копируем .env файл  
           cp server/.env deploy-server/
-          # Копируем минимальный package.json (только mysql2)
+          # Копируем package.json для mysql2
           cp server/package.prod.json deploy-server/package.json
+          # Создаем простой package-lock.json для быстрой установки
+          echo '{"lockfileVersion": 2}' > deploy-server/package-lock.json
 
       - name: Deploy Server
         uses: appleboy/scp-action@master
@@ -134,23 +136,45 @@ jobs:
             pwd
             ls -la
 
+            # Проверяем package.json перед установкой
+            if [ -f "package.json" ]; then
+                echo "📋 package.json содержимое:"
+                cat package.json
+            else
+                echo "❌ package.json отсутствует!"
+                exit 1
+            fi
+
             # Устанавливаем только mysql2 (все остальное в бандле)
-            npm install --production --silent
+            echo "🔄 Запускаем установку mysql2..."
+            npm install --production --no-audit --no-fund
 
             echo "=== Проверка структуры файлов ==="
             echo "Основные файлы:"
             ls -la *.js *.json 2>/dev/null || echo "Нет JS/JSON файлов"
 
+            echo "🔍 Проверка результата установки..."
             if [ -d "node_modules" ]; then
                 echo "✅ node_modules папка создана"
+                echo "📁 Размер node_modules: $(du -sh node_modules/ 2>/dev/null || echo 'неизвестно')"
+                
                 if [ -d "node_modules/mysql2" ]; then
                     echo "✅ mysql2 модуль найден"
+                    echo "📋 Версия mysql2: $(cat node_modules/mysql2/package.json | grep version | head -1)"
                 else
                     echo "❌ mysql2 модуль НЕ найден!"
+                    echo "📋 Доступные модули:"
+                    ls -la node_modules/ | head -10
                 fi
-                echo "Установленные модули: $(ls -1 node_modules/ | wc -l)"
+                
+                echo "📊 Всего установлено модулей: $(ls -1 node_modules/ 2>/dev/null | wc -l)"
             else
                 echo "❌ node_modules папка НЕ создана!"
+                echo "🔍 Проверим ошибки npm:"
+                echo "PWD: $(pwd)"
+                echo "FILES: $(ls -la)"
+                echo "LAST NPM LOG:"
+                cat ~/.npm/_logs/*.log 2>/dev/null | tail -20 || echo "Нет логов npm"
             fi
 
             echo "=== Перезапуск Passenger приложения ==="
