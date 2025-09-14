@@ -1,0 +1,12 @@
+{
+    "name": "yat-glagol-server",
+    "version": "1.0.0",
+    "description": "Yat-Glagol Chat Server",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js"
+    },
+    "dependencies": {
+        "mysql2": "^3.6.5"
+    }
+}
