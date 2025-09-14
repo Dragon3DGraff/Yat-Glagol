@@ -122,7 +122,7 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
     username: string
     email: string
     avatar?: string
-    status: string
+    status: "online" | "offline" | "away"
   } | null> {
     const user = await this.models.User.findByPk(id)
 
@@ -200,13 +200,16 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       ],
     })
 
-    return participantRecords.map((record) => ({
-      id: record.room.id,
-      name: record.room.name,
-      isPrivate: record.room.isPrivate,
-      role: record.role,
-      lastActivity: record.room.messages?.[0]?.createdAt,
-    }))
+    return participantRecords.map((record) => {
+      const room = (record as any).room
+      return {
+        id: room.id,
+        name: room.name,
+        isPrivate: room.isPrivate,
+        role: record.role,
+        lastActivity: room.messages?.[0]?.createdAt,
+      }
+    })
   }
 
   async getChatRoomParticipants(roomId: number): Promise<
@@ -228,13 +231,16 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       ],
     })
 
-    return participants.map((participant) => ({
-      id: participant.user.id,
-      username: participant.user.username,
-      role: participant.role,
-      status: participant.user.status,
-      avatar: participant.user.avatar,
-    }))
+    return participants.map((participant) => {
+      const user = (participant as any).user
+      return {
+        id: user.id,
+        username: user.username,
+        role: participant.role,
+        status: user.status,
+        avatar: user.avatar,
+      }
+    })
   }
 
   async addUserToRoom(
@@ -292,7 +298,7 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
     Array<{
       id: number
       content: string
-      type: string
+      type: "text" | "image" | "file"
       createdAt: Date
       author: { id: number; username: string; avatar?: string }
       replyTo?: { id: number; content: string; author: { username: string } }
@@ -327,26 +333,31 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       offset,
     })
 
-    return messages.reverse().map((message) => ({
-      id: message.id,
-      content: this.decrypt(message.content),
-      type: message.type,
-      createdAt: message.createdAt,
-      author: {
-        id: message.author.id,
-        username: message.author.username,
-        avatar: message.author.avatar,
-      },
-      replyTo: message.replyTo
-        ? {
-            id: message.replyTo.id,
-            content: this.decrypt(message.replyTo.content),
-            author: {
-              username: message.replyTo.author.username,
-            },
-          }
-        : undefined,
-    }))
+    return messages.reverse().map((message) => {
+      const author = (message as any).author
+      const replyTo = (message as any).replyTo
+
+      return {
+        id: message.id,
+        content: this.decrypt(message.content),
+        type: message.type,
+        createdAt: message.createdAt,
+        author: {
+          id: author.id,
+          username: author.username,
+          avatar: author.avatar,
+        },
+        replyTo: replyTo
+          ? {
+              id: replyTo.id,
+              content: this.decrypt(replyTo.content),
+              author: {
+                username: (replyTo as any).author.username,
+              },
+            }
+          : undefined,
+      }
+    })
   }
 
   // Friend methods
@@ -428,13 +439,15 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
     })
 
     return friendships.map((friendship) => {
-      const friend =
-        friendship.userId === userId ? friendship.friend : friendship.user
+      const friendUser =
+        friendship.userId === userId
+          ? (friendship as any).friend
+          : (friendship as any).user
       return {
-        id: friend.id,
-        username: friend.username,
-        status: friend.status,
-        avatar: friend.avatar,
+        id: friendUser.id,
+        username: friendUser.username,
+        status: friendUser.status,
+        avatar: friendUser.avatar,
       }
     })
   }
@@ -460,14 +473,17 @@ export class SequelizeDatabaseManager implements ISequelizeDatabaseManager {
       ],
     })
 
-    return requests.map((request) => ({
-      id: request.id,
-      fromUser: {
-        id: request.user.id,
-        username: request.user.username,
-        avatar: request.user.avatar,
-      },
-      createdAt: request.createdAt,
-    }))
+    return requests.map((request) => {
+      const user = (request as any).user
+      return {
+        id: request.id,
+        fromUser: {
+          id: user.id,
+          username: user.username,
+          avatar: user.avatar,
+        },
+        createdAt: request.createdAt,
+      }
+    })
   }
 }

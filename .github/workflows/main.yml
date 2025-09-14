@@ -61,6 +61,7 @@ jobs:
           mkdir -p deploy-server
           # Копируем собранный бандл (единый файл)
           cp server/dist/index.js deploy-server/
+          cp server/node_modules deploy-server/
           # Копируем .env файл  
           cp server/.env deploy-server/
           # Копируем package.json для mysql2
@@ -89,132 +90,6 @@ jobs:
           script: |
             echo "=== Настройка окружения ===" 
 
-            # Загружаем все возможные профили
-            source ~/.bashrc 2>/dev/null || true
-            source ~/.profile 2>/dev/null || true
-            source ~/.bash_profile 2>/dev/null || true
-
-            # Добавляем пути Node.js (включая Passenger путь)
-            export PATH="$HOME/.local/bin:/usr/local/bin:/opt/nodejs/bin:/usr/bin:/bin:$PATH"
-            export PATH="$HOME/.nvm/versions/node/*/bin:$PATH"
-            export PATH="/usr/local/nodejs/bin:$PATH"
-
-            echo "Текущий PATH: $PATH"
-
-            # Ищем Node.js в различных местах (приоритет домашней папке)
-            NODE_PATH=""
-            for path in "$HOME/.local/bin/node" "/usr/local/bin/node" "/usr/bin/node" "/opt/nodejs/bin/node" "$HOME/.nvm/versions/node/*/bin/node" "/usr/local/nodejs/bin/node"; do
-                if [ -f "$path" ] 2>/dev/null || [ -f $(echo $path) ] 2>/dev/null; then
-                    NODE_PATH=$(dirname "$path")
-                    export PATH="$NODE_PATH:$PATH"
-                    echo "Найден Node.js в: $path"
-                    break
-                fi
-            done
-
-            echo "=== Проверка Node.js и npm ==="
-            if command -v node >/dev/null 2>&1; then
-                echo "✅ Node.js найден: $(node --version)"
-            else
-                echo "❌ Node.js не найден!"
-                echo "Доступные команды:"
-                which node 2>/dev/null || echo "node: не найден"
-                ls -la /usr/local/bin/node* 2>/dev/null || echo "В /usr/local/bin нет node"
-                ls -la /usr/bin/node* 2>/dev/null || echo "В /usr/bin нет node"
-                exit 1
-            fi
-
-            if command -v npm >/dev/null 2>&1; then
-                echo "✅ npm найден: $(npm --version)"
-            else
-                echo "❌ npm не найден!"
-                exit 1
-            fi
-
-            echo "=== Диагностика окружения ==="
-            cd ${{ env.DEPLOY_SERVER_PATH }}
-            pwd
-            ls -la
-
-            echo "🔍 Node.js версия: $(node --version)"
-            echo "🔍 npm версия: $(npm --version)"
-            echo "📋 package.json содержимое:"
-            cat package.json
-
-            echo "=== Альтернативные способы установки зависимостей БД ==="
-
-            # Пробуем разные способы установки sequelize и mysql2
-            DB_MODULES_INSTALLED=false
-
-            # Способ 1: Обычный npm install с package.json
-            echo "🔄 Способ 1: npm install (package.json)"
-            if npm install --production --no-audit --legacy-peer-deps 2>/dev/null; then
-                echo "✅ Способ 1 успешен"
-                DB_MODULES_INSTALLED=true
-            else
-                echo "❌ Способ 1 не сработал"
-            fi
-
-            # Способ 2: yarn (если есть)
-            if [ "$DB_MODULES_INSTALLED" = false ] && command -v yarn >/dev/null 2>&1; then
-                echo "🔄 Способ 2: yarn"
-                if yarn install --production 2>/dev/null; then
-                    echo "✅ Способ 2 (yarn) успешен"
-                    DB_MODULES_INSTALLED=true
-                else
-                    echo "❌ Способ 2 не сработал"
-                fi
-            fi
-
-            # Способ 3: Принудительная очистка кэша npm
-            if [ "$DB_MODULES_INSTALLED" = false ]; then
-                echo "🔄 Способ 3: Очистка кэша npm"
-                rm -rf ~/.npm node_modules
-                npm cache clean --force 2>/dev/null || true
-                if npm install --production --no-package-lock --force 2>/dev/null; then
-                    echo "✅ Способ 3 успешен"
-                    DB_MODULES_INSTALLED=true
-                else
-                    echo "❌ Способ 3 не сработал"
-                fi
-            fi
-
-            # Способ 4: Установка модулей по отдельности
-            if [ "$DB_MODULES_INSTALLED" = false ]; then
-                echo "🔄 Способ 4: Установка модулей по отдельности"
-                mkdir -p node_modules
-                if npm install sequelize mysql2 --production --no-package-lock 2>/dev/null; then
-                    echo "✅ Способ 4 успешен - модули установлены отдельно"
-                    DB_MODULES_INSTALLED=true
-                else
-                    echo "❌ Способ 4 не сработал"
-                fi
-            fi
-
-            echo "=== Проверка результата установки ==="
-            if [ "$DB_MODULES_INSTALLED" = true ]; then
-                echo "✅ Зависимости БД успешно установлены"
-                echo "📋 Размер node_modules: $(du -sh node_modules/ 2>/dev/null)"
-                echo "📊 Модулей установлено: $(ls -1 node_modules/ | wc -l)"
-                
-                if [ -d "node_modules/sequelize" ]; then
-                    echo "✅ sequelize найден"
-                else
-                    echo "❌ sequelize НЕ найден"
-                fi
-                
-                if [ -d "node_modules/mysql2" ]; then
-                    echo "✅ mysql2 найден"
-                else
-                    echo "❌ mysql2 НЕ найден"
-                fi
-            else
-                echo "❌ Все способы установки зависимостей БД не сработали"
-                echo "🔍 Последние логи npm:"
-                cat ~/.npm/_logs/*.log 2>/dev/null | tail -20 || echo "Нет логов npm"
-                echo "⚠️  Продолжаем без модулей БД - возможны ошибки при подключении к БД"
-            fi
-
             echo "=== Перезапуск Passenger приложения ==="
 
             # Passenger перезапускается при изменении файлов
@@ -236,21 +111,6 @@ jobs:
             else
                 echo "❌ .env файл не найден!"
                 exit 1
-            fi
-
-            if [ -d "node_modules/sequelize" ] && [ -d "node_modules/mysql2" ]; then
-                echo "✅ Sequelize ORM и mysql2 доступны для приложения"
-            else
-                echo "⚠️  Модули БД недоступны - возможны ошибки при подключении"
-                echo "💡 Убедитесь что USE_MOCK_DB=true или установите зависимости БД вручную"
-                
-                if [ ! -d "node_modules/sequelize" ]; then
-                    echo "❌ sequelize отсутствует"
-                fi
-                
-                if [ ! -d "node_modules/mysql2" ]; then
-                    echo "❌ mysql2 отсутствует"
-                fi
             fi
 
             echo "✅ Приложение готово к перезапуску Passenger"
